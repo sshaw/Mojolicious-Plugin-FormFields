@@ -1,0 +1,130 @@
+=begin
+
+  field('user.age')->select([10,20,30])
+  field('user.age')->select([10,20,30], 'data-xxx' => 'user-age-select')
+  field('user.age')->select({ US => 'USA', MX => 'Mexico', BR => 'Brazil' })
+
+
+=cut
+
+=begin
+
+  field('user.name')->label
+
+  <label for="user.name">Name</label>
+
+  field('user.name')->label('Nombre', id => "tu_nombre_hyna")
+  field('user.name')->label(id => 'x', class => 'y', sub {
+
+  })
+
+
+=cut
+
+=begin
+
+  field('user.name')->text
+  field('user.name')->text(size => 10, maxlength => 32)
+
+
+=cut
+
+=begin 
+
+for my $field qw(checkbox hidden input password radio select text) {
+    *$field = sub {
+        my $self = shift;
+        my $name = shift;
+        Carp::croak 'field name required' unless $name;
+
+        my $path = "$self->{name}.$name";
+        $self->{cache}->{$path} ||= $self->{c}->field($self->{path},
+						      $self->{object},
+						      $self->{c});
+
+	$self->{cache}->{$path}->$name;
+    };
+}
+
+
+=cut
+
+=pod
+
+=head1 NAME
+
+Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
+
+=head1 SYNOPSIS
+
+  # Mojolicious
+  $self->plugin('FormFields', %options);
+
+  # Mojolicious::Lite
+  plugin 'FormFields', %options;
+
+  # In your view
+  %= field('user.name')->text;
+  %= field('user.password)->password;
+
+  % my $f = fields('user');
+  %= $f->text('name');
+  %= $f->select('age', [10,20,30]);
+  %= $f->password('password');
+
+=head1 DESCRIPTION
+
+L<Mojolicious::Plugin::FormFields> turns request parameters into nested data
+structures using L<CGI::Expand> and helps you use these values in a form.
+
+=head1 Methods
+
+=head2 field
+
+Create form fields 
+
+  <%= field('users.0.name')->text %>
+  <%= field('users.1.name')->text %>
+
+If the expanded representation of the parameter exists in
+L<the stash|Mojolicious::Controller/stash> it will be used as the default.
+If a value for the flattened representation exists (e.g., from a form submission)
+it will be used instead.
+
+You can also supply the object or reference to retrieve the value from
+
+  <%= field('book.upc', $item)->text %>
+
+=head3 Arguments
+
+C<$name>
+
+The name of the parameter.
+
+C<$object>
+
+Optional. The object to retrieve the default value from. Must be a reference to a
+hash, an array, or something blessed. If not given the value will be retrieved from
+the stash or, for previously submitted forms, the request parameter C<$name>.
+
+=head3 Returns
+
+HTML form field
+
+=head3 Errors
+
+An error will be raised if:
+
+=over 4
+
+=item * C<$name> is not provided
+
+=item * C<$name> cannot be retrieved from C<$object>.
+
+=item * C<$object> cannot be found in the stash and no default was given
+
+=back
+
+=head1 SEE ALSO
+
+L<Mojolicious::Plugin::ParamExpand>
