@@ -224,7 +224,6 @@ sub new
     $self;
 }
 
-
 # for my $field qw(checkbox hidden input password radio select text) {
 #     *$field = sub {
 #         my $self = shift;
