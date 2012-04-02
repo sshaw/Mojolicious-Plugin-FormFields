@@ -1,8 +1,11 @@
-package Model;
+package User;
 
-sub new   {  my $class = shift; bless { @_ }, $class }
-sub name  { shift->{name} }
-sub admin { shift->{admin} }
+use Mojo::Base '-base';
+
+has 'age';
+has 'bio';
+has 'name';
+has 'admin';
 
 package TestHelper;
 
@@ -14,7 +17,6 @@ our @ISA = 'Exporter';
 our @EXPORT = qw(render_input user dom is_field_count is_field_attrs);
 
 sub dom { shift->tx->res->dom }	# For Test::Mojo
-sub qs  { join '&', @_ }
 
 sub is_field_count
 { 
@@ -34,10 +36,13 @@ sub is_field_attrs
 sub user 
 { 
     my %attribs = @_;
-    my %defaults = (admin => 1, name => 'sshaw');
+    my %defaults = (admin => 1, 
+		    age   => 101,
+		    bio   => 'Proprietary and confidential',
+		    name  => 'sshaw');
     %attribs = (%defaults, %attribs);
 
-    Model->new(%attribs);	
+    User->new(%attribs);	
 }
 
 sub render_input
@@ -50,24 +55,10 @@ sub render_input
     $options{stash} ||= { user => user(%$user) };
 
     $c->stash(%{$options{stash}});
-    # $c->stash(input => $input);
-    # #$c->render('render_input');
-    # #$c->render('render_input', package => __PACKAGE__);
-    # $c->render_partial(
-    # 	template => 'render_input',
-    # 	format   => 'html',
-    #     handler  => 'ep',
-    #     template_class => __PACKAGE__
-    # );
     $c->render(text => $c->field('user.name')->$input(@{$options{input}}));
 }
 
 1;
-
-__DATA__
-
-@@ render_input.html.ep
-%= field('user.name')->$input
 
 
 

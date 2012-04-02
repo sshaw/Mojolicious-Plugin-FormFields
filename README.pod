@@ -13,7 +13,7 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   plugin 'FormFields', %options;
 
   # In your action
-  sub edit 
+  sub edit
   {
       my $self = shift;
       my $user = $self->find_user($self->param('id'));
@@ -22,8 +22,15 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
 
   # In your view
   %= field('user.name')->text;
-  %= field('user.password)->password;
+  %= field('user.age')->select([10,20,30]);
+  %= field('user.password')->password;
 
+  %= field('user.kinfolk')->each begin
+    %= $_->hidden('id')
+    %= $_->text('name')
+  % end
+   
+  # Scoped
   % my $f = fields('user');
   %= $f->text('name');
   %= $f->select('age', [10,20,30]);
@@ -38,10 +45,13 @@ structures using L<CGI::Expand> and helps you use these values in a form.
 
 =head2 field
 
-Create form fields 
+Create form fields
 
-  <%= field('users.0.name')->text %>
-  <%= field('users.1.name')->text %>
+  %= field('user.name')->text
+
+Same as
+
+  %= text_field 'user.name', $user->name, id => 'user-name'
 
 If the expanded representation of the parameter exists in
 L<the stash|Mojolicious::Controller/stash> it will be used as the default.
@@ -82,12 +92,49 @@ An error will be raised if:
 
 =back
 
-=head1 HTML INPUTS
+=head2 fields
 
-=head2 text
+Create form fields scoped to a parameter. 
 
-  field('user.name')->text
-  field('user.name')->text(size => 10, maxlength => 32)
+For example 
+
+  % $f = fields('user')
+  %= $f->select('age', [10,20,30])
+  %= $f->textarea('bio')
+
+Is the same as
+
+  %= field('user.age')->select([10,20,30])
+  %= field('user.bio')->textarea
+
+=head2 each
+
+Iterate over a collection scoping each element via C<<  L<fields> >>.
+
+  %= field('user.addressees')->each begin
+    # field('user.addressees.N.id')->hidden
+    %= $_->hidden('id')
+
+    # field('user.addressees.N.street')->text
+    %= $_->text('street')
+
+    # field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
+    $_->select('city', [qw|OAK PHL LAX|])
+  % end
+
+=head1 SUPPORTED FIELDS
+
+=head2 checkbox
+
+  # in limbo
+
+=head2 file
+
+  field('user.avatar')->file;
+
+=head2 hidden
+
+  field('user.id')->hidden
 
 =head2 label
 
@@ -101,21 +148,30 @@ An error will be raised if:
 
   })
 
+=head2 password
+
+  field('user.password')->password
+
 =head2 select
 
   field('user.age')->select([10,20,30])
   field('user.age')->select([10,20,30], 'data-xxx' => 'user-age-select')
   field('user.age')->select({ US => 'USA', MX => 'Mexico', BR => 'Brazil' })
 
-=head2 hidden
- 
-  field('user.id')->hidden
-
-=head2 checkbox
 =head2 radio
 
   # in limbo...
 
+=head2 text
+
+  field('user.name')->text
+  field('user.name')->text(size => 10, maxlength => 32)
+
+=head2 textarea
+
+  field('user.bio')->textarea
+  field('user.bio')->textarea(size => '5x30')
+
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::ParamExpand>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>
