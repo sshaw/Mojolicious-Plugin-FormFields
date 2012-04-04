@@ -28,8 +28,8 @@ sub match_elements
 {
     my $t = shift;
     is_field_count($t, 'input', 2);
-    $t->element_exists('input[id="users-0-name"][value="user_a"]');
-    $t->element_exists('input[id="users-1-name"][value="user_b"]');
+    $t->element_exists('input[name="users.0.name"][id="users-0-name"][value="user_a"]');
+    $t->element_exists('input[name="users.1.name"][id="users-1-name"][value="user_b"]');
 }
 
 my $t = Test::Mojo->new;

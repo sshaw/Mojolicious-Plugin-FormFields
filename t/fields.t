@@ -36,8 +36,9 @@ __DATA__
 %= $f->hidden('admin')
 %= $f->label('name')
 %= $f->password('name', size => 10)
-%= $f->radio('age')
+%= $f->radio('age', 'yungsta')
 %= $f->select('age', [10,20,30])
 %= $f->text('name', size => 10)
 %= $f->textarea('bio', rows => '20')
+
 

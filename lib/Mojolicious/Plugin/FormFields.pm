@@ -19,7 +19,6 @@ sub register
   $app->helper(fields => sub {
       Mojolicious::Plugin::FormFields::Fields->new(@_);
   });
-
 }
 
 package Mojolicious::Plugin::FormFields::Field;
@@ -30,11 +29,11 @@ use Scalar::Util;
 use Carp ();
 
 use overload
-    '@{}' => 'to_array',
-    '""'  => 'to_string',
+    '@{}' => '_to_fields',
+    '""'  => '_to_string',
     fallback => 1;
 
-our $SEPARATOR = '.';
+my $SEPARATOR = '.';
 
 sub new
 {
@@ -52,45 +51,45 @@ sub new
     $self;
 }
 
-sub separator { $SEPARATOR; }
-sub to_string { shift->{value}; }
-
-# ???
-# field('x.y')->checkbox('value', %options)
 sub checkbox
 {
     my $self = shift;
-    my $value = @_ % 2 ? shift : 1;
-    my %options = @_;
-    $options{id} //= _default_id("$self->{name}$value");
 
-    $self->_checked_field(\%options);
+    my $value; 
+    $value = shift if @_ % 2;
+    $value //= 1;
+
+    my %options = @_;
+    $options{id} //= _dom_id($self->{name}, $value);
+
+    $self->_checked_field($value, \%options);
     $self->{c}->check_box($self->{name}, $value, %options)
 }
 
 sub file
 {
     my ($self, %options) = @_;
-    $options{id} //= _default_id($self->{name});
-    #$self->input('file', %options)
+    $options{id} //= _dom_id($self->{name});
+
     $self->{c}->file_field($self->{name}, %options);
 }
 
-# ????
-# field('x.y')->radio(on => "1", off => "0", %options)
-# field('x.y')->radio([1,0], %options)
 sub radio
 {
-    my ($self, %options) = @_;
-    $self->_checked_field(\%options);
-    $self->{c}->radio_button($self->{name}, $self->{value}, %options);
+    my ($self, $value, %options) = @_;
+    Carp::croak 'value required' unless defined $value;
+
+    $options{id} //= _dom_id($self->{name}, $value);
+    $self->_checked_field($value, \%options);    
+
+    $self->{c}->radio_button($self->{name}, $value, %options);
 }
 
 sub hidden
 {
     my ($self, %options) = @_;
-    $options{id} //= _default_id($self->{name});
-    #$self->input('hidden', %options)
+    $options{id} //= _dom_id($self->{name});
+
     $self->{c}->hidden_field($self->{name}, $self->{value}, %options);
 }
 
@@ -99,7 +98,7 @@ sub select
     my $self = shift;
     my $options = @_ % 2 ? shift : [];
     my %attr = @_;
-    $attr{id} //= _default_id($self->{name});
+    $attr{id} //= _dom_id($self->{name});
 
     my $c = $self->{c};
     my $name = $self->{name};
@@ -109,9 +108,10 @@ sub select
 	$field = $c->select_field($name, $options, %attr);
     }
     else {
+	# Make select_field select the value
 	$c->param($name, $self->{value});
 	$field = $c->select_field($name, $options, %attr);
-	$c->param($name, undef); # or '' ?a
+	$c->param($name, undef);
     }
 
     $field;
@@ -120,7 +120,8 @@ sub select
 sub password
 {
     my ($self, %options) = @_;
-    $options{id} //= _default_id($self->{name});
+    $options{id} //= _dom_id($self->{name});
+
     $self->{c}->password_field($self->{name}, %options);
 }
 
@@ -131,10 +132,10 @@ sub label
     my $text;
     $text = pop if ref $_[-1] eq 'CODE';
     $text = shift if @_ % 2;	# step on CODE
-    $text ||= _default_label($self->{name});
+    $text //= _default_label($self->{name});
 
     my %options = @_;
-    $options{for} ||= _default_id($self->{name});
+    $options{for} //= _dom_id($self->{name});
 
     $self->{c}->tag('label', %options, $text)
 }
@@ -142,14 +143,15 @@ sub label
 sub text
 {
     my ($self, %options) = @_;
-    $options{id} //= _default_id($self->{name});
+    $options{id} //= _dom_id($self->{name});
+
     $self->{c}->text_field($self->{name}, $self->{value}, %options);
 }
 
 sub textarea
 {
     my ($self, %options) = @_;
-    $options{id} //= _default_id($self->{name});
+    $options{id} //= _dom_id($self->{name});
 
     my $size = delete $options{size};
     if($size && $size =~ /^(\d+)[xX](\d+)$/) {
@@ -160,28 +162,11 @@ sub textarea
     $self->{c}->text_area($self->{name}, %options, sub { $self->{value} });
 }
 
-sub to_array
-{
-    my $self = shift;
-    my $value = $self->{value};
-    my @children = ref($value) eq 'ARRAY' ? @$value : ($value);
-
-    my $fields = [];
-
-    for(my $i = 0; $i < @children; $i++) {
-	my $path = "$self->{name}${SEPARATOR}$i";	
-	push @$fields, $self->{c}->fields($path, $value);
-	#Mojolicious::Plugin::FormFields::Fields->new($path, $children[$i], $self->{c});
-    }
-
-    $fields;
-}
-
 sub each
 {
     my $self = shift;
     my $block = pop;
-    my $fields = $self->to_array;
+    my $fields = $self->_to_fields;
 
     return $fields unless ref($block) eq 'CODE';
     
@@ -191,28 +176,46 @@ sub each
     return;
 }
 
-sub _default_id
+sub separator { $SEPARATOR; }
+
+sub _to_string { shift->{value}; }
+
+sub _to_fields
 {
-    my $name = shift;
-    $name =~ s/[^\w]+/-/g;
-    $name;
+    my $self = shift;
+    my $value = $self->{value};
+
+    my $fields = [];
+    return $fields unless ref($value) eq 'ARRAY';
+
+    my $i = -1;
+    while(++$i < @$value) {
+	my $path = "$self->{name}${SEPARATOR}$i";	
+	push @$fields, $self->{c}->fields($path, $value);
+    }
+
+    $fields;
+}
+
+sub _dom_id
+{
+    my @name = @_;
+    s/[^\w]+/-/g for @name;
+    join '-', @name;
 }
 
 sub _default_label
 {
     my $label = (split /\Q$SEPARATOR/, shift)[-1];
-    $label =~ s/[^-\w]+/ /g;
+    $label =~ s/[^-a-z0-9]+/ /ig;
     ucfirst $label;
 }
 
 sub _checked_field
 {
-    my ($self, $options) = @_;
-    my $name = $self->{name};
-    my $param = $self->{c}->param($name);
-
+    my ($self, $value, $options) = @_;
     $options->{checked} = 'checked'
-	if !exists $options->{checked} && defined $param && $self->{value} eq $param;
+	if !exists $options->{checked} && defined $self->{value} && $self->{value} eq $value;
 }
 
 sub _lookup_value
@@ -326,12 +329,20 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   %= field('user.age')->select([10,20,30]);
   %= field('user.password')->password;
 
+  # Fields for a collection
   %= field('user.kinfolk')->each begin
     %= $_->hidden('id')
     %= $_->text('name')
   % end
+
+  # Same as above
+  % my $kinfolk = field('user.kinfolk');
+  % for my $person (@$kinfolk) {
+    %= $person->hidden('id')
+    %= $person->text('name')
+  % }
    
-  # Scoped
+  # Scoped to user
   % my $f = fields('user');
   %= $f->text('name');
   %= $f->select('age', [10,20,30]);
@@ -413,13 +424,13 @@ Is the same as
 Iterate over a collection scoping each element via C<<  L<fields> >>.
 
   %= field('user.addressees')->each begin
-    # field('user.addressees.N.id')->hidden
+    %# field('user.addressees.N.id')->hidden
     %= $_->hidden('id')
 
-    # field('user.addressees.N.street')->text
+    %# field('user.addressees.N.street')->text
     %= $_->text('street')
 
-    # field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
+    %# field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
     $_->select('city', [qw|OAK PHL LAX|])
   % end
 
@@ -427,7 +438,13 @@ Iterate over a collection scoping each element via C<<  L<fields> >>.
 
 =head2 checkbox
 
-  # in limbo
+  field('user.admin')->checkbox(%options)
+
+  <input type="checkbox" name="user.admin" id="user-admin" value="1"/>
+
+  field('user.admin')->checkbox('yes', %options)
+
+  <input type="checkbox" name="user.admin" id="user-admin" value="yes"/>
 
 =head2 file
 
@@ -442,10 +459,10 @@ Iterate over a collection scoping each element via C<<  L<fields> >>.
   field('user.name')->label
   <label for="user-name">Name</label>
 
-  field('user.name')->label('Nombre', id => "tu_nombre_hyna")
+  field('user.name')->label('Nombre', for => "tu_nombre_hyna")
   <label for="tu_nombre_hyna">Nombre</label>
 
-  field('user.name')->label(id => 'x', class => 'y', sub {
+  field('user.name')->label(for => 'x', class => 'y', sub {
 
   })
 
@@ -456,12 +473,11 @@ Iterate over a collection scoping each element via C<<  L<fields> >>.
 =head2 select
 
   field('user.age')->select([10,20,30])
-  field('user.age')->select([10,20,30], 'data-xxx' => 'user-age-select')
-  field('user.age')->select({ US => 'USA', MX => 'Mexico', BR => 'Brazil' })
+  field('user.age')->select({10 => 'Ten', 20 => 'Dub', 30 => 'Trenta'}, %options)
 
 =head2 radio
 
-  # in limbo...
+  field('user.age')->radio('21 & Over')
 
 =head2 text
 

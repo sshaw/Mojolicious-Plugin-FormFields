@@ -25,12 +25,20 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   %= field('user.age')->select([10,20,30]);
   %= field('user.password')->password;
 
+  # Fields for a collection
   %= field('user.kinfolk')->each begin
     %= $_->hidden('id')
     %= $_->text('name')
   % end
+
+  # Same as above
+  % my $kinfolk = field('user.kinfolk');
+  % for my $person (@$kinfolk) {
+    %= $person->hidden('id')
+    %= $person->text('name')
+  % }
    
-  # Scoped
+  # Scoped to user
   % my $f = fields('user');
   %= $f->text('name');
   %= $f->select('age', [10,20,30]);
@@ -112,13 +120,13 @@ Is the same as
 Iterate over a collection scoping each element via C<<  L<fields> >>.
 
   %= field('user.addressees')->each begin
-    # field('user.addressees.N.id')->hidden
+    %# field('user.addressees.N.id')->hidden
     %= $_->hidden('id')
 
-    # field('user.addressees.N.street')->text
+    %# field('user.addressees.N.street')->text
     %= $_->text('street')
 
-    # field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
+    %# field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
     $_->select('city', [qw|OAK PHL LAX|])
   % end
 
@@ -126,7 +134,13 @@ Iterate over a collection scoping each element via C<<  L<fields> >>.
 
 =head2 checkbox
 
-  # in limbo
+  field('user.admin')->checkbox(%options)
+
+  <input type="checkbox" name="user.admin" id="user-admin" value="1"/>
+
+  field('user.admin')->checkbox('yes', %options)
+
+  <input type="checkbox" name="user.admin" id="user-admin" value="yes"/>
 
 =head2 file
 
@@ -141,10 +155,10 @@ Iterate over a collection scoping each element via C<<  L<fields> >>.
   field('user.name')->label
   <label for="user-name">Name</label>
 
-  field('user.name')->label('Nombre', id => "tu_nombre_hyna")
+  field('user.name')->label('Nombre', for => "tu_nombre_hyna")
   <label for="tu_nombre_hyna">Nombre</label>
 
-  field('user.name')->label(id => 'x', class => 'y', sub {
+  field('user.name')->label(for => 'x', class => 'y', sub {
 
   })
 
@@ -155,12 +169,11 @@ Iterate over a collection scoping each element via C<<  L<fields> >>.
 =head2 select
 
   field('user.age')->select([10,20,30])
-  field('user.age')->select([10,20,30], 'data-xxx' => 'user-age-select')
-  field('user.age')->select({ US => 'USA', MX => 'Mexico', BR => 'Brazil' })
+  field('user.age')->select({10 => 'Ten', 20 => 'Dub', 30 => 'Trenta'}, %options)
 
 =head2 radio
 
-  # in limbo...
+  field('user.age')->radio('21 & Over')
 
 =head2 text
 
