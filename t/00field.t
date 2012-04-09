@@ -99,7 +99,7 @@ $t->get_ok('/with_a_non_reference')
 
 $t->get_ok('/with_a_non_existant_accessor')
     ->status_is(500)
-    ->content_like(qr/access a User/);
+    ->content_like(qr/on a User/);
 
 $t->get_ok('/array_with_a_non_numeric_index')
     ->status_is(500)

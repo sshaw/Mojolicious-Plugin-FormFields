@@ -42,9 +42,10 @@ sub new
     Carp::croak 'field name required' unless $name;
 
     my $self = bless {
-	c     => $c,
-	name  => $name,
-	value => _lookup_value($name, $object, $c)
+	c      => $c,
+	name   => $name,
+	object => $object,
+	value  => _lookup_value($name, $object, $c)
     }, $class;
 
     Scalar::Util::weaken $self->{c};
@@ -60,7 +61,7 @@ sub checkbox
     $value //= 1;
 
     my %options = @_;
-    $options{id} //= _dom_id($self->{name}, $value);
+    $options{id} //= _dom_id($self->{name});
 
     $self->_checked_field($value, \%options);
     $self->{c}->check_box($self->{name}, $value, %options)
@@ -182,7 +183,7 @@ sub _to_string { shift->{value}; }
 
 sub _to_fields
 {
-    my $self = shift;
+    my $self  = shift;
     my $value = $self->{value};
 
     my $fields = [];
@@ -191,7 +192,7 @@ sub _to_fields
     my $i = -1;
     while(++$i < @$value) {
 	my $path = "$self->{name}${SEPARATOR}$i";	
-	push @$fields, $self->{c}->fields($path, $value);
+	push @$fields, $self->{c}->fields($path, $self->{object});
     }
 
     $fields;
@@ -250,7 +251,7 @@ sub _lookup_value
 	}
 	else {
 	    my $type = $isa || 'type that is not a reference';
-	    _invalid_parameter($name, "cannot use '$accessor' to access a $type");
+	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
 	}
     }
 
@@ -285,15 +286,19 @@ sub new
 
 my $sep = Mojolicious::Plugin::FormFields::Field->separator;
 
-for my $field qw(checkbox file hidden input label password radio select text textarea) {
+for my $m qw(checkbox fields file hidden input label password radio select text textarea) {
     no strict 'refs';
-    *$field = sub {
+    *$m = sub {
         my $self = shift;
         my $name = shift;
         Carp::croak 'field name required' unless $name;
 	
         my $path = "$self->{name}$sep$name"; 
-	$self->{c}->field($path, $self->{object}, $self->{c})->$field(@_);
+	my $field = $self->{c}->field($path, $self->{object}, $self->{c});
+
+	return @{$field} if $m eq 'fields';
+
+	$field->$m(@_);
     };
 }
 
@@ -325,45 +330,58 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   }
 
   # In your view
-  %= field('user.name')->text;
-  %= field('user.age')->select([10,20,30]);
-  %= field('user.password')->password;
+  %= field('user.name')->text
+  %= field('user.age')->select([10,20,30])
+  %= field('user.password')->password
+  %= field('user.taste')->radio('Me gusta')
+  %= field('user.taste')->radio('Estoy harto de')
+  %= field('user.orders.0.id')->hidden
 
   # Fields for a collection
-  %= field('user.kinfolk')->each begin
-    %= $_->hidden('id')
-    %= $_->text('name')
-  % end
-
-  # Same as above
   % my $kinfolk = field('user.kinfolk');
   % for my $person (@$kinfolk) {
     %= $person->hidden('id')
     %= $person->text('name')
   % }
+
+  # Or, scope it to the 'user' param
+  % my $user = fields('user');
+  %= $user->hidden('id')
+  %= $user->text('name') 
+  %= $user->label('admin') 	  
+  %= $user->checkbox('admin') 
+  %= $user->password('password')
+  %= $user->select('age', [ [ X => 10], [Dub => 20] ])
+  %= $user->file('avatar') 
+  %= $user->textarea('bio', size => '10x50') 
    
-  # Scoped to user
-  % my $f = fields('user');
-  %= $f->text('name');
-  %= $f->select('age', [10,20,30]);
-  %= $f->password('password');
+  % my $kinfolk = $user->fields('kinfolk');
+  % for my $person (@$kinfolk) {     
+    %= $person->text('name')
+    # ...
+  % }
 
 =head1 DESCRIPTION
 
 L<Mojolicious::Plugin::FormFields> turns request parameters into nested data
-structures using L<CGI::Expand> and helps you use these values in a form.
+structures and helps you bind the resulting structures/objects to form fields.
 
 =head1 METHODS
 
 =head2 field
 
+  field($name)->text
+  field($name, $object)->text
+
 Create form fields
 
   %= field('user.name')->text
 
-Same as
+Is the same as
 
   %= text_field 'user.name', $user->name, id => 'user-name'
+
+See L</SUPPORTED FIELDS> for the list of field creation methods.
 
 If the expanded representation of the parameter exists in
 L<the stash|Mojolicious::Controller/stash> it will be used as the default.
@@ -372,7 +390,7 @@ it will be used instead.
 
 You can also supply the object or reference to retrieve the value from
 
-  <%= field('book.upc', $item)->text %>
+  %= field('book.upc', $item)->text
 
 =head3 Arguments
 
@@ -406,89 +424,147 @@ An error will be raised if:
 
 =head2 fields
 
+  $f = fields($name)
+  $f->text('address')
+
+  $f = fields($name, $object)
+  $f->text('address')
+
 Create form fields scoped to a parameter. 
 
-For example 
+For example
 
   % $f = fields('user')
   %= $f->select('age', [10,20,30])
   %= $f->textarea('bio')
 
-Is the same as
+This is the same as
 
   %= field('user.age')->select([10,20,30])
   %= field('user.bio')->textarea
 
-=head2 each
+=head3 Arguments
 
-Iterate over a collection scoping each element via C<<  L<fields> >>.
+Same as L</field>. 
 
-  %= field('user.addressees')->each begin
+=head3 Returns
+
+An object to create HTML form fields scoped to the C<$name> argument
+
+=head3 Errors
+
+Same as L</field>. 
+
+=head2 Collections
+
+You can create fields scoped to elements in an array by dereferencing the field object 
+
+  % my $addressees = field('user.addressees');
+  %= for my $addr (@$addressees) { 
     %# field('user.addressees.N.id')->hidden
-    %= $_->hidden('id')
+    %= $addr->hidden('id')
 
     %# field('user.addressees.N.street')->text
-    %= $_->text('street')
+    %= $addr->text('street')
 
     %# field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
-    $_->select('city', [qw|OAK PHL LAX|])
-  % end
+    $addr->select('city', [qw|OAK PHL LAX|])
+  % }
 
 =head1 SUPPORTED FIELDS
 
 =head2 checkbox
 
   field('user.admin')->checkbox(%options)
-
-  <input type="checkbox" name="user.admin" id="user-admin" value="1"/>
-
   field('user.admin')->checkbox('yes', %options)
 
-  <input type="checkbox" name="user.admin" id="user-admin" value="yes"/>
+Creates
+
+  <input type="checkbox" name="user.admin" id="user-admin-1" value="1"/>
+  <input type="checkbox" name="user.admin" id="user-admin-yes" value="yes"/>
 
 =head2 file
 
   field('user.avatar')->file;
 
+Creates
+
+  <input id="user-avatar" name="user.avatar" type="file" />
+
 =head2 hidden
 
   field('user.id')->hidden
 
+Creates
+
+  <input id="user-id" name="user.id" type="hidden" value="123123" />
+
+
 =head2 label
 
   field('user.name')->label
-  <label for="user-name">Name</label>
-
   field('user.name')->label('Nombre', for => "tu_nombre_hyna")
+
+Creates
+
+  <label for="user-name">Name</label>
   <label for="tu_nombre_hyna">Nombre</label>
-
-  field('user.name')->label(for => 'x', class => 'y', sub {
-
-  })
 
 =head2 password
 
   field('user.password')->password
 
+Creates
+
+  <input id="user-password" name="user.password" type="password" />
+
 =head2 select
 
   field('user.age')->select([10,20,30])
-  field('user.age')->select({10 => 'Ten', 20 => 'Dub', 30 => 'Trenta'}, %options)
+  field('user.age')>->select('age', [[Ten => 10], [Dub => 20], [Trenta => 30]]) %>
+
+Creates
+
+  <select id="user-age" name="user.age">
+    <option value="10">10</option>
+    <option value="20">20</option>
+    <option value="30" selected="selected">30</option>
+  </select>
+
+  <select id="user-age" name="user.age">
+    <option value="10">Ten</option>
+    <option value="20">Dub</option>
+    <option value="30" selected="selected">Trenta</option>
+  </select>
 
 =head2 radio
 
-  field('user.age')->radio('21 & Over')
+  field('user.age')->radio('age', 'older_than_21')
+
+Creates
+
+  <input id="user-age-older_than_21" name="user.age" type="radio" value="older_than_21" />
 
 =head2 text
 
   field('user.name')->text
   field('user.name')->text(size => 10, maxlength => 32)
 
+Creates
+
+  <input id="user-name" name="user.name" value="sshaw" />
+  <input id="user-name" name="user.name" value="sshaw" size="10" maxlength="32" />
+
 =head2 textarea
 
   field('user.bio')->textarea
-  field('user.bio')->textarea(size => '5x30')
+  field('user.bio')->textarea(size => '10x50')
+
+Creates
+
+  <textarea id="user-bio" name="user.bio">Proprietary and confidential</textarea>
+  <textarea cols="50" id="user-bio" name="user.bio" rows="10">Proprietary and confidential</textarea>
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>

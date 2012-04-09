@@ -6,6 +6,7 @@ has 'age';
 has 'bio';
 has 'name';
 has 'admin';
+has 'orders';
 
 package TestHelper;
 
@@ -37,9 +38,10 @@ sub user
 { 
     my %attribs = @_;
     my %defaults = (admin => 1, 
-		    age   => 101,
+		    age   => 101,		    
 		    bio   => 'Proprietary and confidential',
-		    name  => 'sshaw');
+		    name  => 'sshaw',
+		    orders => [ { id => 1 }, { id => 2 } ]);
     %attribs = (%defaults, %attribs);
 
     User->new(%attribs);	

@@ -11,12 +11,12 @@ plugin 'FormFields';
 get '/checkbox' => sub { render_input(shift, 'checkbox') }; 
 get '/checkbox_with_value' => sub { render_input(shift, 'checkbox', input => ['sshaw']) }; 
 
-my %base_attr = (type => 'checkbox', name  => 'user.name', id => 'user-name-sshaw');
+my %base_attr = (type => 'checkbox', name  => 'user.name', id => 'user-name');
 my $t = Test::Mojo->new;
 $t->get_ok('/checkbox')->status_is(200);
 
 is_field_count($t, 'input', 1);
-is_field_attrs($t, 'input', {  %base_attr, value => '1', id => 'user-name-1' });
+is_field_attrs($t, 'input', {  %base_attr, value => '1', id => 'user-name' });
 
 $t->get_ok('/checkbox_with_value')->status_is(200);
 is_field_attrs($t, 'input', { %base_attr, value => 'sshaw', checked => 'checked' });
