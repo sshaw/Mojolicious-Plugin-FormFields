@@ -160,7 +160,7 @@ sub textarea
 	$options{cols} = $2;
     }
 
-    $self->{c}->text_area($self->{name}, %options, sub { $self->{value} });
+    $self->{c}->text_area($self->{name}, %options, sub { $self->{value} || '' });
 }
 
 sub each
@@ -316,10 +316,10 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
 =head1 SYNOPSIS
 
   # Mojolicious
-  $self->plugin('FormFields', %options);
+  $self->plugin('FormFields')
 
   # Mojolicious::Lite
-  plugin 'FormFields', %options;
+  plugin 'FormFields'
 
   # In your action
   sub edit
@@ -333,8 +333,8 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   %= field('user.name')->text
   %= field('user.age')->select([10,20,30])
   %= field('user.password')->password
-  %= field('user.taste')->radio('Me gusta')
-  %= field('user.taste')->radio('Estoy harto de')
+  %= field('user.taste')->radio('me_gusta')
+  %= field('user.taste')->radio('estoy_harto_de')
   %= field('user.orders.0.id')->hidden
 
   # Fields for a collection
@@ -363,50 +363,114 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
 
 =head1 DESCRIPTION
 
-L<Mojolicious::Plugin::FormFields> turns request parameters into nested data
-structures and helps you bind the resulting structures/objects to form fields.
+L<Mojolicious::Plugin::FormFields> binds objects and data structures to form fields.
+It does not perform validation. 
+
+=head1 CREATING FIELDS
+
+Fields can be bound to a hash, an array, something blessed, or any combination of the three.
+They are created by providing the C<< L</field> >> helper with a path to a value in the stash,
+and calling the desired HTML input method
+
+  field('user.name')->text
+
+This is the same as
+
+  text_field 'user.name', $user->name, id => 'user-name'
+
+Field names are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
+data structure and C<accessor> is a method, hash key, or array index.
+
+Some examples:
+
+  field('users.0.name')->text
+
+Is the same as
+
+  text_field 'users.0.name', $users->[0]->name, id => 'users-0-name'
+
+And 
+
+  field('item.orders.0.XAJ123.quantity')->text
+
+Is equivalent to
+
+  text_field 'item.orders.0.XAJ123.quantity', $item->orders->[0]->{XAJ123}->quantity, id => 'item-orders-0-XAJ123-quantity'
+
+As you can see DOM IDs are always created. 
+
+If the object or reference is not in the stash you can supply it when calling C<< L</field> >>
+
+  field('book.upc', $item)->text
+
+If a value for the flattened representation exists (e.g., from a form submission) it will be used instead of 
+the value pointed at by the field name (desired behavior?). This is the same as Mojolicious' Tag Helpers. 
+
+Options can also be provided
+
+  field('user.name')->text(class => 'input-text', data-name => 'xxx')
+
+See L</SUPPORTED FIELDS> for the list of field creation methods.
+
+=head2  SCOPING 
+
+Fields can be scoped to a particular object/structure via the C<< L</fields> >> helper
+
+  my $user = fields('user');
+  $user->text('name');
+  $user->hidden('id');
+
+When using C<fields> you must supply the field's name to the HTML input method, otherwise 
+the calls are the same as with C<field>.
+
+=head2 COLLECTIONS
+
+You can also create fields scoped to elements in a collection
+
+  my $addressees = field('user.addressees');
+  for my $addr (@$addressees) { 
+    # field('user.addressees.N.id')->hidden
+    $addr->hidden('id');
+
+    # field('user.addressees.N.street')->text
+    $addr->text('street');
+
+    # field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
+    $addr->select('city', [qw|OAK PHL LAX|]);
+  }
+
+Or, for fields that are already scoped
+
+  my $user = fields('user')
+  $user->hidden('id');
+
+  for my $addr ($user->fields('addressees')) { 
+    $addr->hidden('id')
+    # ...
+  }
 
 =head1 METHODS
 
 =head2 field
 
-  field($name)->text
-  field($name, $object)->text
-
-Create form fields
-
-  %= field('user.name')->text
-
-Is the same as
-
-  %= text_field 'user.name', $user->name, id => 'user-name'
-
-See L</SUPPORTED FIELDS> for the list of field creation methods.
-
-If the expanded representation of the parameter exists in
-L<the stash|Mojolicious::Controller/stash> it will be used as the default.
-If a value for the flattened representation exists (e.g., from a form submission)
-it will be used instead.
-
-You can also supply the object or reference to retrieve the value from
-
-  %= field('book.upc', $item)->text
+  field($path)->text
+  field($path, $object)->text
 
 =head3 Arguments
 
-C<$name>
+C<$path>
 
-The name of the parameter.
+The path to a value in the stash. See L</CREATING FIELDS>.
 
 C<$object>
 
-Optional. The object to retrieve the default value from. Must be a reference to a
+Optional. The object to retrieve the value specified by C<$path>. Must be a reference to a
 hash, an array, or something blessed. If not given the value will be retrieved from
-the stash or, for previously submitted forms, the request parameter C<$name>.
+the stash or, for previously submitted forms, the request parameter C<$path>.
 
 =head3 Returns
 
-HTML form field
+A object than can be used to create HTML form fields, see L</SUPPORTED FIELDS>.
 
 =head3 Errors
 
@@ -414,20 +478,24 @@ An error will be raised if:
 
 =over 4
 
-=item * C<$name> is not provided
+=item * C<$path> is not provided
 
-=item * C<$name> cannot be retrieved from C<$object>.
+=item * C<$path> cannot be retrieved from C<$object>.
 
 =item * C<$object> cannot be found in the stash and no default was given
 
 =back
 
+=head2 Collections
+
+See L</COLLECTIONS>
+
 =head2 fields
 
-  $f = fields($name)
+  $f = fields($path)
   $f->text('address')
 
-  $f = fields($name, $object)
+  $f = fields($path, $object)
   $f->text('address')
 
 Create form fields scoped to a parameter. 
@@ -438,7 +506,7 @@ For example
   %= $f->select('age', [10,20,30])
   %= $f->textarea('bio')
 
-This is the same as
+Is the same as
 
   %= field('user.age')->select([10,20,30])
   %= field('user.bio')->textarea
@@ -449,7 +517,7 @@ Same as L</field>.
 
 =head3 Returns
 
-An object to create HTML form fields scoped to the C<$name> argument
+A object than can be used to create HTML form fields scoped to the C<$path> argument, see L</SUPPORTED FIELDS>.
 
 =head3 Errors
 
@@ -457,19 +525,7 @@ Same as L</field>.
 
 =head2 Collections
 
-You can create fields scoped to elements in an array by dereferencing the field object 
-
-  % my $addressees = field('user.addressees');
-  %= for my $addr (@$addressees) { 
-    %# field('user.addressees.N.id')->hidden
-    %= $addr->hidden('id')
-
-    %# field('user.addressees.N.street')->text
-    %= $addr->text('street')
-
-    %# field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
-    $addr->select('city', [qw|OAK PHL LAX|])
-  % }
+See L</COLLECTIONS>
 
 =head1 SUPPORTED FIELDS
 
@@ -485,7 +541,7 @@ Creates
 
 =head2 file
 
-  field('user.avatar')->file;
+  field('user.avatar')->file(%options);
 
 Creates
 
@@ -493,7 +549,7 @@ Creates
 
 =head2 hidden
 
-  field('user.id')->hidden
+  field('user.id')->hidden(%options)
 
 Creates
 
@@ -512,7 +568,7 @@ Creates
 
 =head2 password
 
-  field('user.password')->password
+  field('user.password')->password(%options)
 
 Creates
 
@@ -520,8 +576,8 @@ Creates
 
 =head2 select
 
-  field('user.age')->select([10,20,30])
-  field('user.age')>->select('age', [[Ten => 10], [Dub => 20], [Trenta => 30]]) %>
+  field('user.age')->select([10,20,30], %options)
+  field('user.age')->select([[Ten => 10], [Dub => 20], [Trenta => 30]], %options) %>
 
 Creates
 
@@ -539,7 +595,7 @@ Creates
 
 =head2 radio
 
-  field('user.age')->radio('age', 'older_than_21')
+  field('user.age')->radio('older_than_21', %options)
 
 Creates
 
@@ -547,7 +603,7 @@ Creates
 
 =head2 text
 
-  field('user.name')->text
+  field('user.name')->text(%options)
   field('user.name')->text(size => 10, maxlength => 32)
 
 Creates
@@ -557,7 +613,7 @@ Creates
 
 =head2 textarea
 
-  field('user.bio')->textarea
+  field('user.bio')->textarea(%options)
   field('user.bio')->textarea(size => '10x50')
 
 Creates
