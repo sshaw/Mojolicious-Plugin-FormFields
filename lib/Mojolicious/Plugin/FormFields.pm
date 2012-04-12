@@ -24,7 +24,6 @@ sub register
 package Mojolicious::Plugin::FormFields::Field;
 
 use Mojo::Base '-strict';
-use Mojo::Util;
 use Scalar::Util;
 use Carp ();
 
@@ -315,18 +314,20 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
 
 =head1 SYNOPSIS
 
-  # Mojolicious
   $self->plugin('FormFields')
 
-  # Mojolicious::Lite
-  plugin 'FormFields'
-
-  # In your action
+  # In your controller
   sub edit
   {
       my $self = shift;
-      my $user = $self->find_user($self->param('id'));
+      my $user = $self->users->find($self->param('id'));
       $self->stash(user => $user);
+  }
+
+  sub update
+  {
+      my $self = shift;
+      $self->users->update($self->param('user'));
   }
 
   # In your view
@@ -369,17 +370,18 @@ It does not perform validation.
 =head1 CREATING FIELDS
 
 Fields can be bound to a hash, an array, something blessed, or any combination of the three.
-They are created by providing the C<< L</field> >> helper with a path to a value in the stash,
-and calling the desired HTML input method
+They are created by calling the C<< L</field> >> helper with a path to the value you want to bind,
+and then calling the desired HTML input method
 
   field('user.name')->text
 
-This is the same as
+Is the same as
 
   text_field 'user.name', $user->name, id => 'user-name'
 
-Field names are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
-data structure and C<accessor> is a method, hash key, or array index.
+Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
+data structure and C<accessor> is a method, hash key, or array index. The target must be in the stash under the key C<target>
+or provided to C<< L</field> >>.
 
 Some examples:
 
@@ -399,7 +401,7 @@ Is equivalent to
 
 As you can see DOM IDs are always created. 
 
-If the object or reference is not in the stash you can supply it when calling C<< L</field> >>
+Here the target key C<book> does not exist in the stash so the target is supplied
 
   field('book.upc', $item)->text
 
@@ -412,7 +414,29 @@ Options can also be provided
 
 See L</SUPPORTED FIELDS> for the list of field creation methods.
 
-=head2  SCOPING 
+=head2 STRUCTURED REQUEST PARAMETERS
+
+Structured request parameters for the bound object/data structure are available via 
+C<Mojolicious::Controller>'s L<param method|Mojolicious::Controller#param>.
+Nested parameters can not be accessed via C<Mojo::Message::Request>.
+
+A request with the parameters C<user.name=nameA&user.email=email&id=123> can be accessed in your action like
+
+  my $user = $self->param('user');
+  $user->{name};
+  $user->{email};
+
+Other parameters can be accessed as usual
+
+  $id = $self->param('id');
+
+The flattened parameter can also be used
+
+  $name = $self->param('user.name');
+
+See L<Mojolicious::Plugin::ParamExpand> for more info. 
+
+=head2 SCOPING 
 
 Fields can be scoped to a particular object/structure via the C<< L</fields> >> helper
 
@@ -470,7 +494,7 @@ the stash or, for previously submitted forms, the request parameter C<$path>.
 
 =head3 Returns
 
-A object than can be used to create HTML form fields, see L</SUPPORTED FIELDS>.
+An object than can be used to create HTML form fields, see L</SUPPORTED FIELDS>.
 
 =head3 Errors
 
@@ -480,7 +504,7 @@ An error will be raised if:
 
 =item * C<$path> is not provided
 
-=item * C<$path> cannot be retrieved from C<$object>.
+=item * C<$path> cannot be retrieved from C<$object>
 
 =item * C<$object> cannot be found in the stash and no default was given
 
