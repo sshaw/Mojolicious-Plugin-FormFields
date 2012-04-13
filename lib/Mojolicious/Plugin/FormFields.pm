@@ -2,7 +2,7 @@ package Mojolicious::Plugin::FormFields;
 
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.01';
+our $VERSION = '0.01_01';
 
 sub register
 {
@@ -60,10 +60,9 @@ sub checkbox
     $value //= 1;
 
     my %options = @_;
-    $options{id} //= _dom_id($self->{name});
+    $options{value} = $value;
 
-    $self->_checked_field($value, \%options);
-    $self->{c}->check_box($self->{name}, $value, %options)
+    $self->input('checkbox', %options);
 }
 
 sub file
@@ -74,23 +73,38 @@ sub file
     $self->{c}->file_field($self->{name}, %options);
 }
 
+sub input
+{
+    my ($self, $type, %options) = @_;
+    my $value = $self->{value};
+
+    $options{id} //= _dom_id($self->{name});
+    $options{value} //= $value if defined $value;
+    $options{type} = $type;
+
+    if($type eq 'checkbox' || $type eq 'radio') {
+	$options{checked} = 'checked'
+	    if !exists $options{checked} && defined $value && $value eq $options{value};
+    }
+
+    $self->{c}->input_tag($self->{name}, %options);    
+}
+
+sub hidden
+{
+    my ($self, %options) = @_;
+    $self->input('hidden', %options);
+}
+
 sub radio
 {
     my ($self, $value, %options) = @_;
     Carp::croak 'value required' unless defined $value;
 
     $options{id} //= _dom_id($self->{name}, $value);
-    $self->_checked_field($value, \%options);    
+    $options{value} = $value;
 
-    $self->{c}->radio_button($self->{name}, $value, %options);
-}
-
-sub hidden
-{
-    my ($self, %options) = @_;
-    $options{id} //= _dom_id($self->{name});
-
-    $self->{c}->hidden_field($self->{name}, $self->{value}, %options);
+    $self->input('radio', %options);
 }
 
 sub select
@@ -122,7 +136,7 @@ sub password
     my ($self, %options) = @_;
     $options{id} //= _dom_id($self->{name});
 
-    $self->{c}->password_field($self->{name}, %options);
+    $self->{c}->password_field($self->{name}, %options);    
 }
 
 sub label
@@ -143,9 +157,7 @@ sub label
 sub text
 {
     my ($self, %options) = @_;
-    $options{id} //= _dom_id($self->{name});
-
-    $self->{c}->text_field($self->{name}, $self->{value}, %options);
+    $self->input('text', %options);
 }
 
 sub textarea
@@ -214,8 +226,6 @@ sub _default_label
 sub _checked_field
 {
     my ($self, $value, $options) = @_;
-    $options->{checked} = 'checked'
-	if !exists $options->{checked} && defined $self->{value} && $self->{value} eq $value;
 }
 
 sub _lookup_value
@@ -285,7 +295,7 @@ sub new
 
 my $sep = Mojolicious::Plugin::FormFields::Field->separator;
 
-for my $m qw(checkbox fields file hidden input label password radio select text textarea) {
+for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
     no strict 'refs';
     *$m = sub {
         my $self = shift;
@@ -375,9 +385,11 @@ and then calling the desired HTML input method
 
   field('user.name')->text
 
-Is the same as
+Is the same as 
 
   text_field 'user.name', $user->name, id => 'user-name'
+
+(though C<Mojolicious::Plugin::FormFields> sets C<type="text">).
 
 Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
 data structure and C<accessor> is a method, hash key, or array index. The target must be in the stash under the key C<target>
@@ -412,7 +424,7 @@ Options can also be provided
 
   field('user.name')->text(class => 'input-text', data-name => 'xxx')
 
-See L</SUPPORTED FIELDS> for the list of field creation methods.
+See L</SUPPORTED FIELDS> for the list of HTML input creation methods.
 
 =head2 STRUCTURED REQUEST PARAMETERS
 
@@ -477,20 +489,20 @@ Or, for fields that are already scoped
 
 =head2 field
 
-  field($path)->text
-  field($path, $object)->text
+  field($name)->text
+  field($name, $object)->text
 
 =head3 Arguments
 
-C<$path>
+C<$name>
 
-The path to a value in the stash. See L</CREATING FIELDS>.
+The field's name, which can also be the path to its value in the stash. See L</CREATING FIELDS>.
 
 C<$object>
 
-Optional. The object to retrieve the value specified by C<$path>. Must be a reference to a
+Optional. The object used to retrieve the value specified by C<$name>. Must be a reference to a
 hash, an array, or something blessed. If not given the value will be retrieved from
-the stash or, for previously submitted forms, the request parameter C<$path>.
+the stash or, for previously submitted forms, the request parameter C<$name>.
 
 =head3 Returns
 
@@ -502,9 +514,9 @@ An error will be raised if:
 
 =over 4
 
-=item * C<$path> is not provided
+=item * C<$name> is not provided
 
-=item * C<$path> cannot be retrieved from C<$object>
+=item * C<$name> cannot be retrieved from C<$object>
 
 =item * C<$object> cannot be found in the stash and no default was given
 
@@ -516,10 +528,10 @@ See L</COLLECTIONS>
 
 =head2 fields
 
-  $f = fields($path)
+  $f = fields($name)
   $f->text('address')
 
-  $f = fields($path, $object)
+  $f = fields($name, $object)
   $f->text('address')
 
 Create form fields scoped to a parameter. 
@@ -541,7 +553,7 @@ Same as L</field>.
 
 =head3 Returns
 
-A object than can be used to create HTML form fields scoped to the C<$path> argument, see L</SUPPORTED FIELDS>.
+An object than can be used to create HTML form fields scoped to the C<$name> argument, see L</SUPPORTED FIELDS>.
 
 =head3 Errors
 

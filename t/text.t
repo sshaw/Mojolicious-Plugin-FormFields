@@ -11,7 +11,7 @@ plugin 'FormFields';
 get '/text' => sub { render_input(shift, 'text') };
 get '/text_with_options' => sub { render_input(shift, 'text', input => [size => 10, id => 'luser-mayne']) };
 
-my %base_attr = (id => 'user-name', name  => 'user.name', value => 'sshaw');
+my %base_attr = (type => "text", id => 'user-name', name  => 'user.name', value => 'sshaw');
 my $t = Test::Mojo->new;
 $t->get_ok('/text')->status_is(200);
 
