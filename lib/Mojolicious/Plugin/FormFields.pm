@@ -2,7 +2,7 @@ package Mojolicious::Plugin::FormFields;
 
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.01_01';
+our $VERSION = '0.01_02';
 
 sub register
 {
@@ -12,8 +12,11 @@ sub register
   $self->SUPER::register($app, $config);
 
   $app->helper(field => sub {
-      # cache by name
-      Mojolicious::Plugin::FormFields::Field->new(@_);
+      my $c    = shift;
+      my $name = shift || '';
+      my $key  = "formfields.$name";
+      $c->stash->{$key} ||= Mojolicious::Plugin::FormFields::Field->new($c, $name, @_);
+      $c->stash->{$key};
   });
 
   $app->helper(fields => sub {
@@ -296,8 +299,7 @@ sub new
 my $sep = Mojolicious::Plugin::FormFields::Field->separator;
 
 for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
-    no strict 'refs';
-    *$m = sub {
+    no strict 'refs';    *$m = sub {
         my $self = shift;
         my $name = shift;
         Carp::croak 'field name required' unless $name;
@@ -422,7 +424,7 @@ the value pointed at by the field name (desired behavior?). This is the same as 
 
 Options can also be provided
 
-  field('user.name')->text(class => 'input-text', data-name => 'xxx')
+  field('user.name')->text(class => 'input-text', 'data-name' => 'xxx')
 
 See L</SUPPORTED FIELDS> for the list of HTML input creation methods.
 
@@ -591,6 +593,17 @@ Creates
 
   <input id="user-id" name="user.id" type="hidden" value="123123" />
 
+=head2 input
+
+  field('user.phone')->input($type, %options)
+
+For example
+
+  field('user.phone')->input('tel', pattern => '\d{3}-\d{4}')
+
+Creates
+
+  <input id="user-phone" name="user.phone" type="tel" pattern="\d{3}-\d{4}" />
 
 =head2 label
 
@@ -613,7 +626,7 @@ Creates
 =head2 select
 
   field('user.age')->select([10,20,30], %options)
-  field('user.age')->select([[Ten => 10], [Dub => 20], [Trenta => 30]], %options) %>
+  field('user.age')->select([[Ten => 10], [Dub => 20], [Trenta => 30]], %options)
 
 Creates
 

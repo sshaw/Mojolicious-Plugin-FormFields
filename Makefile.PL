@@ -13,7 +13,8 @@ WriteMakefile(
      LICENSE      => 'perl',
      test         => {TESTS => 't/*.t'},
      (eval { ExtUtils::MakeMaker->VERSION(6.46) } ?
-      (META_MERGE  => { resources => { bugtracker => 'http://github.com/sshaw/Mojolicious-Plugin-FormFields/issues' } }) : ())
+      (META_MERGE  => { resources => { bugtracker => 'http://github.com/sshaw/Mojolicious-Plugin-FormFields/issues',
+				       homepage   => 'http://github.com/sshaw/Mojolicious-Plugin-FormFields'} }) : ())
 );
 
 # Create README.pod for a repo's GitHub page. Unlike CPAN, GitHub won't 

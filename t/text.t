@@ -16,7 +16,6 @@ my $t = Test::Mojo->new;
 $t->get_ok('/text')->status_is(200);
 
 is_field_count($t, 'input', 1);
-# Mojolicious' text_field doesn't render a type
 is_field_attrs($t, 'input', \%base_attr);
 
 $t->get_ok('/text?user.name=jkat')->status_is(200);
