@@ -337,41 +337,40 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   }
 
   # In your view
-  %= field('user.name')->text
-  %= field('user.age')->select([10,20,30])
-  %= field('user.password')->password
-  %= field('user.taste')->radio('me_gusta')
-  %= field('user.taste')->radio('estoy_harto_de')
-  %= field('user.orders.0.id')->hidden
+   field('user.name')->text
+   field('user.age')->select([10,20,30])
+   field('user.password')->password
+   field('user.taste')->radio('me_gusta')
+   field('user.taste')->radio('estoy_harto_de')
+   field('user.orders.0.id')->hidden
 
   # Fields for a collection
-  % my $kinfolk = field('user.kinfolk');
-  % for my $person (@$kinfolk) {
-    %= $person->hidden('id')
-    %= $person->text('name')
-  % }
+  my $kinfolk = field('user.kinfolk');
+  for my $person (@$kinfolk) {
+    $person->hidden('id')
+    $person->text('name')
+  }
 
   # Or, scope it to the 'user' param
-  % my $user = fields('user');
-  %= $user->hidden('id')
-  %= $user->text('name') 
-  %= $user->label('admin') 	  
-  %= $user->checkbox('admin') 
-  %= $user->password('password')
-  %= $user->select('age', [ [ X => 10], [Dub => 20] ])
-  %= $user->file('avatar') 
-  %= $user->textarea('bio', size => '10x50') 
+  my $user = fields('user');
+  $user->hidden('id')
+  $user->text('name') 
+  $user->label('admin') 	  
+  $user->checkbox('admin') 
+  $user->password('password')
+  $user->select('age', [ [ X => 10], [Dub => 20] ])
+  $user->file('avatar') 
+  $user->textarea('bio', size => '10x50') 
    
-  % my $kinfolk = $user->fields('kinfolk');
-  % for my $person (@$kinfolk) {     
-    %= $person->text('name')
+  my $kinfolk = $user->fields('kinfolk');
+  for my $person (@$kinfolk) {     
+    $person->text('name')
     # ...
-  % }
+  }
 
 =head1 DESCRIPTION
 
 L<Mojolicious::Plugin::FormFields> binds objects and data structures to form fields.
-It does not perform validation. 
 
 =head1 CREATING FIELDS
 
@@ -678,12 +677,14 @@ Creates
 
 =head1 AUTHOR
 
-Skye Shaw (sshaw AT lucas.cis.temple.edu)
+Skye Shaw (sshaw AT lucas.cis.temple.edu) 
 
 =head1 SEE ALSO
 
 L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>
 
-=head1 LICENSE
+=head1 COPYRIGHT
+
+Copyright (c) 2012 Skye Shaw.
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
