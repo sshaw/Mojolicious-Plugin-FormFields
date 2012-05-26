@@ -2,7 +2,7 @@ package Mojolicious::Plugin::FormFields;
 
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.01_02';
+our $VERSION = '0.02';
 
 sub register
 {
@@ -20,7 +20,7 @@ sub register
   });
 
   $app->helper(fields => sub {
-      Mojolicious::Plugin::FormFields::Fields->new(@_);
+      Mojolicious::Plugin::FormFields::ScopedField->new(@_);
   });
 }
 
@@ -226,9 +226,10 @@ sub _default_label
     ucfirst $label;
 }
 
-sub _checked_field
+sub _invalid_parameter
 {
-    my ($self, $value, $options) = @_;
+    my ($field, $message) = @_;
+    Carp::croak "Invalid parameter '$field': $message";
 }
 
 sub _lookup_value
@@ -237,82 +238,75 @@ sub _lookup_value
     my @path = split /\Q$SEPARATOR/, $name;
 
     if(!$object) {
-	$object = $c->stash($path[0]);
-	_invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
+        $object = $c->stash($path[0]);
+        _invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
     }
 
     # Remove the stash key for $object
     shift @path;
 
     while(defined(my $accessor = shift @path)) {
-	my $isa = ref($object);
+        my $isa = ref($object);
 
-	# We don't handle the case where one of these return an array
-	if(Scalar::Util::blessed($object) && $object->can($accessor)) {
-	    $object = $object->$accessor;
-	}
-	elsif($isa eq 'HASH') {
-	    # If blessed and !can() do we _really_ want to look inside?
-	    $object = $object->{$accessor};
-	}
-	elsif($isa eq 'ARRAY') {
-	    _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
-		unless $accessor =~ /^\d+$/;
+        # We don't handle the case where one of these return an array
+        if(Scalar::Util::blessed($object) && $object->can($accessor)) {
+            $object = $object->$accessor;
+        }
+        elsif($isa eq 'HASH') {
+            # If blessed and !can() do we _really_ want to look inside?
+            $object = $object->{$accessor};
+        }
+        elsif($isa eq 'ARRAY') {
+            _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
+                unless $accessor =~ /^\d+$/;
 
-	    $object = $object->[$accessor];
-	}
-	else {
-	    my $type = $isa || 'type that is not a reference';
-	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
-	}
+            $object = $object->[$accessor];
+        }
+        else {
+            my $type = $isa || 'type that is not a reference';
+            _invalid_parameter($name, "cannot use '$accessor' on a $type");
+        }
     }
 
     $object;
 }
 
-sub _invalid_parameter
-{
-    my ($field, $message) = @_;
-    Carp::croak "Invalid parameter '$field': $message";
-}
-
-package Mojolicious::Plugin::FormFields::Fields;
+package Mojolicious::Plugin::FormFields::ScopedField;
 
 use Mojo::Base '-strict';
 use Carp ();
 
+our @ISA = 'Mojolicious::Plugin::FormFields::Field';
+
+my $sep = __PACKAGE__->separator; 
+
 sub new
 {
-    my ($class, $c, $name, $object) = @_;
-    Carp::croak 'object name required' unless $name;
+    my $class = shift;
+    Carp::croak 'object name required' unless $_[1];
 
-    my $self = bless {
-	c      => $c,
-	name   => $name, #path?
-	object => $object
-    }, $class;
-
-    Scalar::Util::weaken $self->{c};
+    my $self = $class->SUPER::new(@_);
+    $self->{index} = $1 if $self->{name} =~ /\Q$sep\E(\d+)$/;
     $self;
 }
 
-my $sep = Mojolicious::Plugin::FormFields::Field->separator;
+sub index  { shift->{index} }
+sub object { shift->{value} }
 
 for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
-    no strict 'refs';    *$m = sub {
-        my $self = shift;
+    no strict 'refs';    
+    *$m = sub {
+        my $self = shift; 
         my $name = shift;
         Carp::croak 'field name required' unless $name;
 	
-        my $path = "$self->{name}$sep$name"; 
+        my $path = "$self->{name}${sep}$name"; 
 	my $field = $self->{c}->field($path, $self->{object}, $self->{c});
-
-	return @{$field} if $m eq 'fields';
+	return $field if $m eq 'fields';
 
 	$field->$m(@_);
-    };
+    };    
 }
-
 
 1;
 
@@ -395,7 +389,7 @@ Is the same as
 
 Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
 data structure and C<accessor> is a method, hash key, or array index. The target must be in the stash under the key C<target>
-or provided to C<< L</field> >>.
+or provided as an argument to C<< L</field> >>.
 
 Some examples:
 
@@ -459,21 +453,21 @@ Fields can be scoped to a particular object/structure via the C<< L</fields> >> 
   $user->hidden('id');
 
 When using C<fields> you must supply the field's name to the HTML input method, otherwise 
-the calls are the same as with C<field>.
+the calls are the same as they are with C<field>.
 
 =head2 COLLECTIONS
 
-You can also create fields scoped to elements in a collection
+You can also create fields scoped to elements in the collection
 
-  my $addressees = field('user.addressees');
-  for my $addr (@$addressees) { 
-    # field('user.addressees.N.id')->hidden
+  my $addresses = field('user.addresses');
+  for my $addr (@$addresses) { 
+    # field('user.addresses.N.id')->hidden
     $addr->hidden('id');
 
-    # field('user.addressees.N.street')->text
+    # field('user.addresses.N.street')->text
     $addr->text('street');
 
-    # field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
+    # field('user.addresses.N.city')->select([qw|OAK PHL LAX|])
     $addr->select('city', [qw|OAK PHL LAX|]);
   }
 
@@ -482,11 +476,23 @@ Or, for fields that are already scoped
   my $user = fields('user')
   $user->hidden('id');
 
-  for my $addr ($user->fields('addressees')) { 
+  my $addressess = $user->fields('addresses');
+  for my $addr (@$addresses) { 
     $addr->hidden('id')
     # ...
   }
 
+You can also access the underlying object and it's position within a collection
+via the C<object> and C<index> methods. 
+
+  <% for my $addr (@$addresses) {  %>
+    <div id="<%= dom_id($addr->object) %>">
+      <h3>Address #<%= $addr->index + 1 %></h3>
+      <%= $addr->hidden('id') %>
+      ...
+    </div>
+  <% } %>
+   
 =head1 METHODS
 
 =head2 field
@@ -524,7 +530,7 @@ An error will be raised if:
 
 =back
 
-=head2 Collections
+=head3 Collections
 
 See L</COLLECTIONS>
 
@@ -561,7 +567,7 @@ An object than can be used to create HTML form fields scoped to the C<$name> arg
 
 Same as L</field>. 
 
-=head2 Collections
+=head3 Collections
 
 See L</COLLECTIONS>
 
@@ -633,13 +639,13 @@ Creates
   <select id="user-age" name="user.age">
     <option value="10">10</option>
     <option value="20">20</option>
-    <option value="30" selected="selected">30</option>
+    <option value="30">30</option>
   </select>
 
   <select id="user-age" name="user.age">
     <option value="10">Ten</option>
     <option value="20">Dub</option>
-    <option value="30" selected="selected">Trenta</option>
+    <option value="30">Trenta</option>
   </select>
 
 =head2 radio
@@ -670,6 +676,14 @@ Creates
   <textarea id="user-bio" name="user.bio">Proprietary and confidential</textarea>
   <textarea cols="50" id="user-bio" name="user.bio" rows="10">Proprietary and confidential</textarea>
 
+=head1 AUTHOR
+
+Skye Shaw (sshaw AT lucas.cis.temple.edu)
+
 =head1 SEE ALSO
 
 L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>
+
+=head1 LICENSE
+
+This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.

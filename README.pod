@@ -75,7 +75,7 @@ Is the same as
 
 Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
 data structure and C<accessor> is a method, hash key, or array index. The target must be in the stash under the key C<target>
-or provided to C<< L</field> >>.
+or provided as an argument to C<< L</field> >>.
 
 Some examples:
 
@@ -139,21 +139,21 @@ Fields can be scoped to a particular object/structure via the C<< L</fields> >> 
   $user->hidden('id');
 
 When using C<fields> you must supply the field's name to the HTML input method, otherwise 
-the calls are the same as with C<field>.
+the calls are the same as they are with C<field>.
 
 =head2 COLLECTIONS
 
-You can also create fields scoped to elements in a collection
+You can also create fields scoped to elements in the collection
 
-  my $addressees = field('user.addressees');
-  for my $addr (@$addressees) { 
-    # field('user.addressees.N.id')->hidden
+  my $addresses = field('user.addresses');
+  for my $addr (@$addresses) { 
+    # field('user.addresses.N.id')->hidden
     $addr->hidden('id');
 
-    # field('user.addressees.N.street')->text
+    # field('user.addresses.N.street')->text
     $addr->text('street');
 
-    # field('user.addressees.N.city')->select([qw|OAK PHL LAX|])
+    # field('user.addresses.N.city')->select([qw|OAK PHL LAX|])
     $addr->select('city', [qw|OAK PHL LAX|]);
   }
 
@@ -162,11 +162,23 @@ Or, for fields that are already scoped
   my $user = fields('user')
   $user->hidden('id');
 
-  for my $addr ($user->fields('addressees')) { 
+  my $addressess = $user->fields('addresses');
+  for my $addr (@$addresses) { 
     $addr->hidden('id')
     # ...
   }
 
+You can also access the underlying object and it's position within a collection
+via the C<object> and C<index> methods. 
+
+  <% for my $addr (@$addresses) {  %>
+    <div id="<%= dom_id($addr->object) %>">
+      <h3>Address #<%= $addr->index + 1 %></h3>
+      <%= $addr->hidden('id') %>
+      ...
+    </div>
+  <% } %>
+   
 =head1 METHODS
 
 =head2 field
@@ -204,7 +216,7 @@ An error will be raised if:
 
 =back
 
-=head2 Collections
+=head3 Collections
 
 See L</COLLECTIONS>
 
@@ -241,7 +253,7 @@ An object than can be used to create HTML form fields scoped to the C<$name> arg
 
 Same as L</field>. 
 
-=head2 Collections
+=head3 Collections
 
 See L</COLLECTIONS>
 
@@ -313,13 +325,13 @@ Creates
   <select id="user-age" name="user.age">
     <option value="10">10</option>
     <option value="20">20</option>
-    <option value="30" selected="selected">30</option>
+    <option value="30">30</option>
   </select>
 
   <select id="user-age" name="user.age">
     <option value="10">Ten</option>
     <option value="20">Dub</option>
-    <option value="30" selected="selected">Trenta</option>
+    <option value="30">Trenta</option>
   </select>
 
 =head2 radio
@@ -350,6 +362,14 @@ Creates
   <textarea id="user-bio" name="user.bio">Proprietary and confidential</textarea>
   <textarea cols="50" id="user-bio" name="user.bio" rows="10">Proprietary and confidential</textarea>
 
+=head1 AUTHOR
+
+Skye Shaw (sshaw AT lucas.cis.temple.edu)
+
 =head1 SEE ALSO
 
 L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>
+
+=head1 LICENSE
+
+This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.

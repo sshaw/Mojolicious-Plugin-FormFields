@@ -22,7 +22,7 @@ get '/with_hash_as_target' => sub {
 
 get '/with_array_as_target' => sub {
     my $self = shift;
-    my @users = ({ name => 'coelhinha' });
+    my @users = ({ name => 'coelinha' });
     $self->stash(users => \@users);
     $self->render(text => $self->field('users.0.name'));
 };
@@ -75,7 +75,7 @@ $t->get_ok('/with_hash_as_target')
 
 $t->get_ok('/with_array_as_target')
     ->status_is(200)
-    ->content_is('coelhinha');
+    ->content_is('coelinha');
 
 $t->get_ok('/with_hash_argument_as_target')
     ->status_is(200)
