@@ -1,12 +1,14 @@
 package Mojolicious::Plugin::FormFields;
 
+# TODO: We're not much of a subclass now
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub register
 {
   my ($self, $app, $config) = @_;
+  my $ns = 'formfields.fields';
 
   $config->{separator} = Mojolicious::Plugin::FormFields::Field->separator;
   $self->SUPER::register($app, $config);
@@ -14,13 +16,37 @@ sub register
   $app->helper(field => sub {
       my $c    = shift;
       my $name = shift || '';
-      my $key  = "formfields.$name";
-      $c->stash->{$key} ||= Mojolicious::Plugin::FormFields::Field->new($c, $name, @_);
-      $c->stash->{$key};
+      $c->stash->{$ns}->{$name} ||= Mojolicious::Plugin::FormFields::Field->new($c, $name, @_);
+      $c->stash->{$ns}->{$name};
   });
 
   $app->helper(fields => sub {
       Mojolicious::Plugin::FormFields::ScopedField->new(@_);
+  });
+
+  my $functions = $config->{functions};
+  my $helper = $functions->{valid} // 'valid';
+  $app->helper($helper => sub {
+      my $c = shift;
+      my $valid = 1;
+      my $errors = {};
+
+      while(my ($name, $field) = each %{$c->stash->{$ns}}) {
+	  if(!$field->valid) {
+	      $valid = 0;
+	      $errors->{$name} = $field->errors;
+	  }
+      }
+
+      $c->stash->{"$ns.errors"} = $errors;
+      $valid;
+  });
+
+  $helper = $functions->{error} // 'errors';
+  $app->helper($helper => sub {
+      my ($c, $name) = @_;
+      my $errors = $c->stash->{"$ns.errors"} // {};
+      $name ? { $name => $errors->{$name} } : $errors;
   });
 }
 
@@ -29,6 +55,7 @@ package Mojolicious::Plugin::FormFields::Field;
 use Mojo::Base '-strict';
 use Scalar::Util;
 use Carp ();
+use Validate::Tiny;
 
 use overload
     '@{}' => '_to_fields',
@@ -37,6 +64,17 @@ use overload
 
 my $SEPARATOR = '.';
 
+for my $m (qw(check filter)) {
+    no strict 'refs';
+
+    *$m = sub {
+	my ($self, $code) = @_;
+	Carp::croak 'code ref required' unless ref $code eq 'CODE';
+	push @{$self->{"${m}s"}}, $self->{name} => $code;
+	$self;
+    };
+}
+
 sub new
 {
     my $class = shift;
@@ -44,10 +82,12 @@ sub new
     Carp::croak 'field name required' unless $name;
 
     my $self = bless {
-	c      => $c,
-	name   => $name,
-	object => $object,
-	value  => _lookup_value($name, $object, $c)
+	c       => $c,
+	name    => $name,
+	object  => $object,
+	checks  => [],
+	filters => [],
+	value   => _lookup_value($name, $object, $c)
     }, $class;
 
     Scalar::Util::weaken $self->{c};
@@ -58,7 +98,7 @@ sub checkbox
 {
     my $self = shift;
 
-    my $value; 
+    my $value;
     $value = shift if @_ % 2;
     $value //= 1;
 
@@ -90,7 +130,7 @@ sub input
 	    if !exists $options{checked} && defined $value && $value eq $options{value};
     }
 
-    $self->{c}->input_tag($self->{name}, %options);    
+    $self->{c}->input_tag($self->{name}, %options);
 }
 
 sub hidden
@@ -139,7 +179,7 @@ sub password
     my ($self, %options) = @_;
     $options{id} //= _dom_id($self->{name});
 
-    $self->{c}->password_field($self->{name}, %options);    
+    $self->{c}->password_field($self->{name}, %options);
 }
 
 sub label
@@ -184,14 +224,55 @@ sub each
     my $fields = $self->_to_fields;
 
     return $fields unless ref($block) eq 'CODE';
-    
+
     local $_;
     $block->() for @$fields;
 
     return;
 }
 
+# Will this ever be a list?
+sub errors { values %{shift->{result}->{error}}; }
+
 sub separator { $SEPARATOR; }
+
+sub valid
+{
+    my $self  = shift;
+    return $self->{result}->{success} if defined $self->{result};
+
+    my $field = { $self->{name} => $self->{value} };
+    my $rules = {
+	fields  => [ $self->{name} ],
+	checks  => $self->{checks},
+	filters => $self->{filters}
+    };
+
+    $self->{result} = Validate::Tiny::validate($field, $rules);
+    $self->{result}->{success};
+}
+
+# Avoid AUTOLOAD call
+sub DESTROY { }
+
+our $AUTOLOAD;
+sub AUTOLOAD
+{
+    my $self   = shift;
+   (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
+    if($method =~ /^is_/) {
+	my $check = Validate::Tiny->can($method);
+	die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
+
+	push @{$self->{checks}}, $self->{name} => $check->(@_);
+    }
+    else {
+	push @{$self->{filters}}, $self->{name} => Validate::Tiny::filter($method);
+    }
+
+    $self->{result} = undef;	# reset previous validation
+    $self;
+}
 
 sub _to_string { shift->{value}; }
 
@@ -205,7 +286,7 @@ sub _to_fields
 
     my $i = -1;
     while(++$i < @$value) {
-	my $path = "$self->{name}${SEPARATOR}$i";	
+	my $path = "$self->{name}${SEPARATOR}$i";
 	push @$fields, $self->{c}->fields($path, $self->{object});
     }
 
@@ -238,34 +319,36 @@ sub _lookup_value
     my @path = split /\Q$SEPARATOR/, $name;
 
     if(!$object) {
-        $object = $c->stash($path[0]);
-        _invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
+	$object = $c->stash($path[0]);
+	# TODO: With the addition of the validation methods this should be put off until 
+	# calling an input method... or just use '' when there's no $object
+	_invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
     }
 
     # Remove the stash key for $object
     shift @path;
 
     while(defined(my $accessor = shift @path)) {
-        my $isa = ref($object);
+	my $isa = ref($object);
 
-        # We don't handle the case where one of these return an array
-        if(Scalar::Util::blessed($object) && $object->can($accessor)) {
-            $object = $object->$accessor;
-        }
-        elsif($isa eq 'HASH') {
-            # If blessed and !can() do we _really_ want to look inside?
-            $object = $object->{$accessor};
-        }
-        elsif($isa eq 'ARRAY') {
-            _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
-                unless $accessor =~ /^\d+$/;
+	# We don't handle the case where one of these return an array
+	if(Scalar::Util::blessed($object) && $object->can($accessor)) {
+	    $object = $object->$accessor;
+	}
+	elsif($isa eq 'HASH') {
+	    # If blessed and !can() do we _really_ want to look inside?
+	    $object = $object->{$accessor};
+	}
+	elsif($isa eq 'ARRAY') {
+	    _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
+		unless $accessor =~ /^\d+$/;
 
-            $object = $object->[$accessor];
-        }
-        else {
-            my $type = $isa || 'type that is not a reference';
-            _invalid_parameter($name, "cannot use '$accessor' on a $type");
-        }
+	    $object = $object->[$accessor];
+	}
+	else {
+	    my $type = $isa || 'type that is not a reference';
+	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
+	}
     }
 
     $object;
@@ -278,7 +361,7 @@ use Carp ();
 
 our @ISA = 'Mojolicious::Plugin::FormFields::Field';
 
-my $sep = __PACKAGE__->separator; 
+my $sep = __PACKAGE__->separator;
 
 sub new
 {
@@ -294,18 +377,18 @@ sub index  { shift->{index} }
 sub object { shift->{value} }
 
 for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
-    no strict 'refs';    
+    no strict 'refs';
     *$m = sub {
-        my $self = shift; 
-        my $name = shift;
-        Carp::croak 'field name required' unless $name;
-	
-        my $path = "$self->{name}${sep}$name"; 
+	my $self = shift;
+	my $name = shift;
+	Carp::croak 'field name required' unless $name;
+
+	my $path = "$self->{name}${sep}$name";
 	my $field = $self->{c}->field($path, $self->{object}, $self->{c});
 	return $field if $m eq 'fields';
 
 	$field->$m(@_);
-    };    
+    };
 }
 
 1;
@@ -316,11 +399,11 @@ __END__
 
 =head1 NAME
 
-Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
+Mojolicious::Plugin::FormFields - Build forms using objects and data structures and validate them
 
 =head1 SYNOPSIS
 
-  $self->plugin('FormFields')
+  $self->plugin('FormFields');
 
   # In your controller
   sub edit
@@ -333,16 +416,26 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   sub update
   {
       my $self = shift;
-      $self->users->update($self->param('user'));
+      $self->field('user.name')->is_required;
+      $self->field('user.password')->is_required->is_equal('user.confirm_password');
+
+      if($self->valid) {
+	  $self->users->update($self->param('user'));
+	  $self->redirect_to('/profile');
+	  return;
+      }
   }
 
   # In your view
-   field('user.name')->text
-   field('user.age')->select([10,20,30])
-   field('user.password')->password
-   field('user.taste')->radio('me_gusta')
-   field('user.taste')->radio('estoy_harto_de')
-   field('user.orders.0.id')->hidden
+  field('user.name')->text
+  join ', ', @{field('user.name')->errors} unless field('user.name')->valid
+
+  field('user.password')->password
+  field('user.age')->select([10,20,30])
+  field('user.password')->password
+  field('user.taste')->radio('me_gusta')
+  field('user.taste')->radio('estoy_harto_de')
+  field('user.orders.0.id')->hidden
 
   # Fields for a collection
   my $kinfolk = field('user.kinfolk');
@@ -352,18 +445,19 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   }
 
   # Or, scope it to the 'user' param
-  my $user = fields('user');
+  my $user = fields('user')
   $user->hidden('id')
-  $user->text('name') 
-  $user->label('admin') 	  
-  $user->checkbox('admin') 
+  $user->text('name')
+  join ', ', @{$user->errors('name')} unless $user->valid('name')
+  $user->label('admin')
+  $user->checkbox('admin')
   $user->password('password')
   $user->select('age', [ [ X => 10], [Dub => 20] ])
-  $user->file('avatar') 
-  $user->textarea('bio', size => '10x50') 
-   
-  my $kinfolk = $user->fields('kinfolk');
-  for my $person (@$kinfolk) {     
+  $user->file('avatar')
+  $user->textarea('bio', size => '10x50')
+
+  my $kinfolk = $user->fields('kinfolk')
+  for my $person (@$kinfolk) {
     $person->text('name')
     # ...
   }
@@ -380,13 +474,13 @@ and then calling the desired HTML input method
 
   field('user.name')->text
 
-Is the same as 
+Is the same as
 
   text_field 'user.name', $user->name, id => 'user-name'
 
 (though C<Mojolicious::Plugin::FormFields> sets C<type="text">).
 
-Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
+Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or
 data structure and C<accessor> is a method, hash key, or array index. The target must be in the stash under the key C<target>
 or provided as an argument to C<< L</field> >>.
 
@@ -398,7 +492,7 @@ Is the same as
 
   text_field 'users.0.name', $users->[0]->name, id => 'users-0-name'
 
-And 
+And
 
   field('item.orders.0.XAJ123.quantity')->text
 
@@ -406,14 +500,14 @@ Is equivalent to
 
   text_field 'item.orders.0.XAJ123.quantity', $item->orders->[0]->{XAJ123}->quantity, id => 'item-orders-0-XAJ123-quantity'
 
-As you can see DOM IDs are always created. 
+As you can see DOM IDs are always created.
 
 Here the target key C<book> does not exist in the stash so the target is supplied
 
   field('book.upc', $item)->text
 
-If a value for the flattened representation exists (e.g., from a form submission) it will be used instead of 
-the value pointed at by the field name (desired behavior?). This is the same as Mojolicious' Tag Helpers. 
+If a value for the flattened representation exists (e.g., from a form submission) it will be used instead of
+the value pointed at by the field name (desired behavior?). This is the same as Mojolicious' Tag Helpers.
 
 Options can also be provided
 
@@ -423,9 +517,9 @@ See L</SUPPORTED FIELDS> for the list of HTML input creation methods.
 
 =head2 STRUCTURED REQUEST PARAMETERS
 
-Structured request parameters for the bound object/data structure are available via 
+Structured request parameters for the bound object/data structure are available via
 C<Mojolicious::Controller>'s L<param method|Mojolicious::Controller#param>.
-Nested parameters can not be accessed via C<Mojo::Message::Request>.
+They can not be accessed via C<Mojo::Message::Request>.
 
 A request with the parameters C<user.name=nameA&user.email=email&id=123> can be accessed in your action like
 
@@ -441,25 +535,25 @@ The flattened parameter can also be used
 
   $name = $self->param('user.name');
 
-See L<Mojolicious::Plugin::ParamExpand> for more info. 
+See L<Mojolicious::Plugin::ParamExpand> for more info.
 
-=head2 SCOPING 
+=head2 SCOPING
 
-Fields can be scoped to a particular object/structure via the C<< L</fields> >> helper
+Fields can be scoped to a particular object/data structure via the C<< L</fields> >> helper
 
   my $user = fields('user');
   $user->text('name');
   $user->hidden('id');
 
-When using C<fields> you must supply the field's name to the HTML input method, otherwise 
+When using C<fields> you must supply the field's name to the HTML input method, otherwise
 the calls are the same as they are with C<field>.
 
 =head2 COLLECTIONS
 
-You can also create fields scoped to elements in the collection
+You can also create fields scoped to elements in a collection
 
   my $addresses = field('user.addresses');
-  for my $addr (@$addresses) { 
+  for my $addr (@$addresses) {
     # field('user.addresses.N.id')->hidden
     $addr->hidden('id');
 
@@ -476,13 +570,13 @@ Or, for fields that are already scoped
   $user->hidden('id');
 
   my $addressess = $user->fields('addresses');
-  for my $addr (@$addresses) { 
+  for my $addr (@$addresses) {
     $addr->hidden('id')
     # ...
   }
 
-You can also access the underlying object and it's position within a collection
-via the C<object> and C<index> methods. 
+You can also access the underlying object and its position within a collection
+via the C<object> and C<index> methods.
 
   <% for my $addr (@$addresses) {  %>
     <div id="<%= dom_id($addr->object) %>">
@@ -491,7 +585,7 @@ via the C<object> and C<index> methods.
       ...
     </div>
   <% } %>
-   
+
 =head1 METHODS
 
 =head2 field
@@ -541,7 +635,7 @@ See L</COLLECTIONS>
   $f = fields($name, $object)
   $f->text('address')
 
-Create form fields scoped to a parameter. 
+Create form fields scoped to a parameter.
 
 For example
 
@@ -556,7 +650,7 @@ Is the same as
 
 =head3 Arguments
 
-Same as L</field>. 
+Same as L</field>.
 
 =head3 Returns
 
@@ -564,7 +658,7 @@ An object than can be used to create HTML form fields scoped to the C<$name> arg
 
 =head3 Errors
 
-Same as L</field>. 
+Same as L</field>.
 
 =head3 Collections
 
@@ -677,11 +771,11 @@ Creates
 
 =head1 AUTHOR
 
-Skye Shaw (sshaw AT lucas.cis.temple.edu) 
+Skye Shaw (sshaw AT gmail.com)
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>, L<MojoX::Validator>
 
 =head1 COPYRIGHT
 

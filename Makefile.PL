@@ -9,7 +9,8 @@ WriteMakefile(
      ABSTRACT_FROM => 'lib/Mojolicious/Plugin/FormFields.pm',
      AUTHOR       => 'Skye Shaw <sshaw AT lucas.cis.temple.edu>',	      
      PREREQ_PM    => { 'Mojolicious' => '2.52',
-		       'Mojolicious::Plugin::ParamExpand' => 0 },
+		       'Mojolicious::Plugin::ParamExpand' => 0, 
+		       'Validate::Tiny' => '0.98' },
      LICENSE      => 'perl',
      test         => {TESTS => 't/*.t'},
      (eval { ExtUtils::MakeMaker->VERSION(6.46) } ?

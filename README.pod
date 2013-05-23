@@ -2,11 +2,11 @@
 
 =head1 NAME
 
-Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
+Mojolicious::Plugin::FormFields - Build forms using objects and data structures and validate them
 
 =head1 SYNOPSIS
 
-  $self->plugin('FormFields')
+  $self->plugin('FormFields');
 
   # In your controller
   sub edit
@@ -19,16 +19,26 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   sub update
   {
       my $self = shift;
-      $self->users->update($self->param('user'));
+      $self->field('user.name')->is_required;
+      $self->field('user.password')->is_required->is_equal('user.confirm_password');
+
+      if($self->valid) {
+	  $self->users->update($self->param('user'));
+	  $self->redirect_to('/profile');
+	  return;
+      }
   }
 
   # In your view
-   field('user.name')->text
-   field('user.age')->select([10,20,30])
-   field('user.password')->password
-   field('user.taste')->radio('me_gusta')
-   field('user.taste')->radio('estoy_harto_de')
-   field('user.orders.0.id')->hidden
+  field('user.name')->text
+  join ', ', @{field('user.name')->errors} unless field('user.name')->valid
+
+  field('user.password')->password
+  field('user.age')->select([10,20,30])
+  field('user.password')->password
+  field('user.taste')->radio('me_gusta')
+  field('user.taste')->radio('estoy_harto_de')
+  field('user.orders.0.id')->hidden
 
   # Fields for a collection
   my $kinfolk = field('user.kinfolk');
@@ -38,18 +48,19 @@ Mojolicious::Plugin::FormFields - Use objects and data structures in your forms
   }
 
   # Or, scope it to the 'user' param
-  my $user = fields('user');
+  my $user = fields('user')
   $user->hidden('id')
-  $user->text('name') 
-  $user->label('admin') 	  
-  $user->checkbox('admin') 
+  $user->text('name')
+  join ', ', @{$user->errors('name')} unless $user->valid('name')
+  $user->label('admin')
+  $user->checkbox('admin')
   $user->password('password')
   $user->select('age', [ [ X => 10], [Dub => 20] ])
-  $user->file('avatar') 
-  $user->textarea('bio', size => '10x50') 
-   
-  my $kinfolk = $user->fields('kinfolk');
-  for my $person (@$kinfolk) {     
+  $user->file('avatar')
+  $user->textarea('bio', size => '10x50')
+
+  my $kinfolk = $user->fields('kinfolk')
+  for my $person (@$kinfolk) {
     $person->text('name')
     # ...
   }
@@ -66,13 +77,13 @@ and then calling the desired HTML input method
 
   field('user.name')->text
 
-Is the same as 
+Is the same as
 
   text_field 'user.name', $user->name, id => 'user-name'
 
 (though C<Mojolicious::Plugin::FormFields> sets C<type="text">).
 
-Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or 
+Field names/paths are given in the form C<target.accessor1 [ .accessor2 [ .accessorN ] ]> where C<target> is an object or
 data structure and C<accessor> is a method, hash key, or array index. The target must be in the stash under the key C<target>
 or provided as an argument to C<< L</field> >>.
 
@@ -84,7 +95,7 @@ Is the same as
 
   text_field 'users.0.name', $users->[0]->name, id => 'users-0-name'
 
-And 
+And
 
   field('item.orders.0.XAJ123.quantity')->text
 
@@ -92,14 +103,14 @@ Is equivalent to
 
   text_field 'item.orders.0.XAJ123.quantity', $item->orders->[0]->{XAJ123}->quantity, id => 'item-orders-0-XAJ123-quantity'
 
-As you can see DOM IDs are always created. 
+As you can see DOM IDs are always created.
 
 Here the target key C<book> does not exist in the stash so the target is supplied
 
   field('book.upc', $item)->text
 
-If a value for the flattened representation exists (e.g., from a form submission) it will be used instead of 
-the value pointed at by the field name (desired behavior?). This is the same as Mojolicious' Tag Helpers. 
+If a value for the flattened representation exists (e.g., from a form submission) it will be used instead of
+the value pointed at by the field name (desired behavior?). This is the same as Mojolicious' Tag Helpers.
 
 Options can also be provided
 
@@ -109,9 +120,9 @@ See L</SUPPORTED FIELDS> for the list of HTML input creation methods.
 
 =head2 STRUCTURED REQUEST PARAMETERS
 
-Structured request parameters for the bound object/data structure are available via 
+Structured request parameters for the bound object/data structure are available via
 C<Mojolicious::Controller>'s L<param method|Mojolicious::Controller#param>.
-Nested parameters can not be accessed via C<Mojo::Message::Request>.
+They can not be accessed via C<Mojo::Message::Request>.
 
 A request with the parameters C<user.name=nameA&user.email=email&id=123> can be accessed in your action like
 
@@ -127,25 +138,25 @@ The flattened parameter can also be used
 
   $name = $self->param('user.name');
 
-See L<Mojolicious::Plugin::ParamExpand> for more info. 
+See L<Mojolicious::Plugin::ParamExpand> for more info.
 
-=head2 SCOPING 
+=head2 SCOPING
 
-Fields can be scoped to a particular object/structure via the C<< L</fields> >> helper
+Fields can be scoped to a particular object/data structure via the C<< L</fields> >> helper
 
   my $user = fields('user');
   $user->text('name');
   $user->hidden('id');
 
-When using C<fields> you must supply the field's name to the HTML input method, otherwise 
+When using C<fields> you must supply the field's name to the HTML input method, otherwise
 the calls are the same as they are with C<field>.
 
 =head2 COLLECTIONS
 
-You can also create fields scoped to elements in the collection
+You can also create fields scoped to elements in a collection
 
   my $addresses = field('user.addresses');
-  for my $addr (@$addresses) { 
+  for my $addr (@$addresses) {
     # field('user.addresses.N.id')->hidden
     $addr->hidden('id');
 
@@ -162,13 +173,13 @@ Or, for fields that are already scoped
   $user->hidden('id');
 
   my $addressess = $user->fields('addresses');
-  for my $addr (@$addresses) { 
+  for my $addr (@$addresses) {
     $addr->hidden('id')
     # ...
   }
 
-You can also access the underlying object and it's position within a collection
-via the C<object> and C<index> methods. 
+You can also access the underlying object and its position within a collection
+via the C<object> and C<index> methods.
 
   <% for my $addr (@$addresses) {  %>
     <div id="<%= dom_id($addr->object) %>">
@@ -177,7 +188,7 @@ via the C<object> and C<index> methods.
       ...
     </div>
   <% } %>
-   
+
 =head1 METHODS
 
 =head2 field
@@ -227,7 +238,7 @@ See L</COLLECTIONS>
   $f = fields($name, $object)
   $f->text('address')
 
-Create form fields scoped to a parameter. 
+Create form fields scoped to a parameter.
 
 For example
 
@@ -242,7 +253,7 @@ Is the same as
 
 =head3 Arguments
 
-Same as L</field>. 
+Same as L</field>.
 
 =head3 Returns
 
@@ -250,7 +261,7 @@ An object than can be used to create HTML form fields scoped to the C<$name> arg
 
 =head3 Errors
 
-Same as L</field>. 
+Same as L</field>.
 
 =head3 Collections
 
@@ -363,12 +374,14 @@ Creates
 
 =head1 AUTHOR
 
-Skye Shaw (sshaw AT lucas.cis.temple.edu)
+Skye Shaw (sshaw AT gmail.com)
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>, L<MojoX::Validator>
 
-=head1 LICENSE
+=head1 COPYRIGHT
+
+Copyright (c) 2012 Skye Shaw.
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
