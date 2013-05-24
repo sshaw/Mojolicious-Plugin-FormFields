@@ -34,7 +34,7 @@ sub register
       while(my ($name, $field) = each %{$c->stash->{$ns}}) {
 	  if(!$field->valid) {
 	      $valid = 0;
-	      $errors->{$name} = $field->errors;
+	      $errors->{$name} = $field->error;
 	  }
       }
 
@@ -52,7 +52,7 @@ sub register
 
 package Mojolicious::Plugin::FormFields::Field;
 
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Scalar::Util;
 use Carp ();
 use Validate::Tiny;
@@ -86,8 +86,7 @@ sub new
 	name    => $name,
 	object  => $object,
 	checks  => [],
-	filters => [],
-	value   => _lookup_value($name, $object, $c)
+	filters => []
     }, $class;
 
     Scalar::Util::weaken $self->{c};
@@ -119,7 +118,7 @@ sub file
 sub input
 {
     my ($self, $type, %options) = @_;
-    my $value = $self->{value};
+    my $value = $self->_value;
 
     $options{id} //= _dom_id($self->{name});
     $options{value} //= $value if defined $value;
@@ -166,7 +165,7 @@ sub select
     }
     else {
 	# Make select_field select the value
-	$c->param($name, $self->{value});
+	$c->param($name, $self->_value);
 	$field = $c->select_field($name, $options, %attr);
 	$c->param($name, undef);
     }
@@ -214,7 +213,7 @@ sub textarea
 	$options{cols} = $2;
     }
 
-    $self->{c}->text_area($self->{name}, %options, sub { $self->{value} || '' });
+    $self->{c}->text_area($self->{name}, %options, sub { $self->_value || '' });
 }
 
 sub each
@@ -231,8 +230,12 @@ sub each
     return;
 }
 
-# Will this ever be a list?
-sub errors { values %{shift->{result}->{error}}; }
+# Just a single value
+sub error 
+{
+    my $self = shift;
+    $self->{result}->{error}->{$self->{name}};
+}
 
 sub separator { $SEPARATOR; }
 
@@ -241,13 +244,20 @@ sub valid
     my $self  = shift;
     return $self->{result}->{success} if defined $self->{result};
 
-    my $field = { $self->{name} => $self->{value} };
+    # If we can't lookup the field's value an exception is raised. This is for the input creation methods as we can't 
+    # bind a field if the object containing its value doesn't exist. But here we must ignore it, as it's possible that 
+    # the request doesn't contain the param represented by this Field.
+    my $value;
+    eval { $value = $self->_value };
+
+    my $field = { $self->{name} => $value };
     my $rules = {
 	fields  => [ $self->{name} ],
 	checks  => $self->{checks},
 	filters => $self->{filters}
     };
 
+    # TODO: If valid we need to set the filtered fields
     $self->{result} = Validate::Tiny::validate($field, $rules);
     $self->{result}->{success};
 }
@@ -274,12 +284,12 @@ sub AUTOLOAD
     $self;
 }
 
-sub _to_string { shift->{value}; }
+sub _to_string { shift->_value; }
 
 sub _to_fields
 {
     my $self  = shift;
-    my $value = $self->{value};
+    my $value = $self->_value;
 
     my $fields = [];
     return $fields unless ref($value) eq 'ARRAY';
@@ -320,8 +330,6 @@ sub _lookup_value
 
     if(!$object) {
 	$object = $c->stash($path[0]);
-	# TODO: With the addition of the validation methods this should be put off until 
-	# calling an input method... or just use '' when there's no $object
 	_invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
     }
 
@@ -354,9 +362,18 @@ sub _lookup_value
     $object;
 }
 
+sub _value
+{
+    my $self = shift;    
+    return $self->{value} if defined $self->{value};
+
+    $self->{value} = _lookup_value($self->{name}, $self->{object}, $self->{c}); # just make it a method    
+    $self->{value};
+}
+
 package Mojolicious::Plugin::FormFields::ScopedField;
 
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Carp ();
 
 our @ISA = 'Mojolicious::Plugin::FormFields::Field';
@@ -374,7 +391,7 @@ sub new
 }
 
 sub index  { shift->{index} }
-sub object { shift->{value} }
+sub object { shift->_value }
 
 for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
     no strict 'refs';
@@ -428,7 +445,7 @@ Mojolicious::Plugin::FormFields - Build forms using objects and data structures 
 
   # In your view
   field('user.name')->text
-  join ', ', @{field('user.name')->errors} unless field('user.name')->valid
+  field('user.name')->error unless field('user.name')->valid
 
   field('user.password')->password
   field('user.age')->select([10,20,30])
@@ -448,7 +465,7 @@ Mojolicious::Plugin::FormFields - Build forms using objects and data structures 
   my $user = fields('user')
   $user->hidden('id')
   $user->text('name')
-  join ', ', @{$user->errors('name')} unless $user->valid('name')
+  $user->error('name') unless $user->valid('name')
   $user->label('admin')
   $user->checkbox('admin')
   $user->password('password')
@@ -464,7 +481,8 @@ Mojolicious::Plugin::FormFields - Build forms using objects and data structures 
 
 =head1 DESCRIPTION
 
-L<Mojolicious::Plugin::FormFields> binds objects and data structures to form fields.
+L<Mojolicious::Plugin::FormFields> is a lightweight form builder that allows you to bind objects
+and data structures to form fields. It also performs validation.
 
 =head1 CREATING FIELDS
 

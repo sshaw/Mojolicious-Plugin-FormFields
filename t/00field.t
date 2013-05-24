@@ -1,7 +1,7 @@
 use Mojo::Base '-strict';
 use Mojolicious::Lite;
 
-use Test::More tests => 30; 
+use Test::More tests => 30;
 use Test::Mojo;
 
 use TestHelper;
@@ -31,7 +31,7 @@ get '/with_hash_argument_as_target' => sub {
     my $self = shift;
     my $object = { name => 'xxx' };
     $self->stash(user => user());
-    # should use $object not user()    
+    # should use $object not user()
     $self->render(text => $self->field('user.name', $object));
 };
 
@@ -39,29 +39,29 @@ get '/with_object_argument_as_target' => sub {
     my $self = shift;
     my $object = user(name => 'xxx');
     $self->stash(user => user());
-    # should use $object not user()    
+    # should use $object not user()
     $self->render(text => $self->field('user.name', $object));
 };
 
 # Error cases
-get '/with_a_missing_param_name' => sub { 
-    shift->field 
+get '/with_a_missing_param_name' => sub {
+    shift->field
 };
 
-get '/with_a_invalid_param_name' => sub { 
-    shift->field('not_in_stash') 
+get '/with_a_invalid_param_name' => sub {
+    shift->field('not_in_stash')->text
 };
 
-get '/with_a_non_reference'=> sub { 
-    shift->field('x.y', 123) 
+get '/with_a_non_reference'=> sub {
+    shift->field('x.y', 123)->text
 };
 
-get '/with_a_non_existant_accessor' => sub { 
-    shift->field('user.x', user()) 
+get '/with_a_non_existant_accessor' => sub {
+    shift->field('user.x', user())->text
 };
 
-get '/array_with_a_non_numeric_index' => sub { 
-    shift->field('array.x', []) 
+get '/array_with_a_non_numeric_index' => sub {
+    shift->field('array.x', [])->text
 };
 
 my $t = Test::Mojo->new;

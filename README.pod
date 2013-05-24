@@ -31,7 +31,7 @@ Mojolicious::Plugin::FormFields - Build forms using objects and data structures 
 
   # In your view
   field('user.name')->text
-  join ', ', @{field('user.name')->errors} unless field('user.name')->valid
+  field('user.name')->error unless field('user.name')->valid
 
   field('user.password')->password
   field('user.age')->select([10,20,30])
@@ -51,7 +51,7 @@ Mojolicious::Plugin::FormFields - Build forms using objects and data structures 
   my $user = fields('user')
   $user->hidden('id')
   $user->text('name')
-  join ', ', @{$user->errors('name')} unless $user->valid('name')
+  $user->error('name') unless $user->valid('name')
   $user->label('admin')
   $user->checkbox('admin')
   $user->password('password')
@@ -67,7 +67,8 @@ Mojolicious::Plugin::FormFields - Build forms using objects and data structures 
 
 =head1 DESCRIPTION
 
-L<Mojolicious::Plugin::FormFields> binds objects and data structures to form fields.
+L<Mojolicious::Plugin::FormFields> is a lightweight form builder that allows you to bind objects
+and data structures to form fields. It also performs validation.
 
 =head1 CREATING FIELDS
 
