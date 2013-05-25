@@ -118,7 +118,7 @@ sub file
 sub input
 {
     my ($self, $type, %options) = @_;
-    my $value = $self->_value;
+    my $value = $self->_lookup_value;
 
     $options{id} //= _dom_id($self->{name});
     $options{value} //= $value if defined $value;
@@ -165,7 +165,7 @@ sub select
     }
     else {
 	# Make select_field select the value
-	$c->param($name, $self->_value);
+	$c->param($name, $self->_lookup_value);
 	$field = $c->select_field($name, $options, %attr);
 	$c->param($name, undef);
     }
@@ -213,7 +213,7 @@ sub textarea
 	$options{cols} = $2;
     }
 
-    $self->{c}->text_area($self->{name}, %options, sub { $self->_value || '' });
+    $self->{c}->text_area($self->{name}, %options, sub { $self->_lookup_value || '' });
 }
 
 sub each
@@ -244,12 +244,7 @@ sub valid
     my $self  = shift;
     return $self->{result}->{success} if defined $self->{result};
 
-    # If we can't lookup the field's value an exception is raised. This is for the input creation methods as we can't 
-    # bind a field if the object containing its value doesn't exist. But here we must ignore it, as it's possible that 
-    # the request doesn't contain the param represented by this Field.
-    my $value;
-    eval { $value = $self->_value };
-
+    my $value = $self->{c}->param($self->{name});
     my $field = { $self->{name} => $value };
     my $rules = {
 	fields  => [ $self->{name} ],
@@ -270,10 +265,11 @@ sub AUTOLOAD
 {
     my $self   = shift;
    (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
+
     if($method =~ /^is_/) {
 	my $check = Validate::Tiny->can($method);
 	die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
-
+	
 	push @{$self->{checks}}, $self->{name} => $check->(@_);
     }
     else {
@@ -284,12 +280,12 @@ sub AUTOLOAD
     $self;
 }
 
-sub _to_string { shift->_value; }
+sub _to_string { shift->_lookup_value; }
 
 sub _to_fields
 {
     my $self  = shift;
-    my $value = $self->_value;
+    my $value = $self->_lookup_value;
 
     my $fields = [];
     return $fields unless ref($value) eq 'ARRAY';
@@ -325,11 +321,15 @@ sub _invalid_parameter
 
 sub _lookup_value
 {
-    my ($name, $object, $c) = @_;
+    my $self = shift;
+    return $self->{value} if defined $self->{value};
+
+    my $name = $self->{name};    
+    my $object = $self->{object};
     my @path = split /\Q$SEPARATOR/, $name;
 
     if(!$object) {
-	$object = $c->stash($path[0]);
+	$object = $self->{c}->stash($path[0]);
 	_invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
     }
 
@@ -358,16 +358,8 @@ sub _lookup_value
 	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
 	}
     }
-
-    $object;
-}
-
-sub _value
-{
-    my $self = shift;    
-    return $self->{value} if defined $self->{value};
-
-    $self->{value} = _lookup_value($self->{name}, $self->{object}, $self->{c}); # just make it a method    
+    
+    $self->{value} = $object;
     $self->{value};
 }
 
@@ -391,7 +383,7 @@ sub new
 }
 
 sub index  { shift->{index} }
-sub object { shift->_value }
+sub object { shift->_lookup_value }
 
 for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
     no strict 'refs';
@@ -416,7 +408,7 @@ __END__
 
 =head1 NAME
 
-Mojolicious::Plugin::FormFields - Build forms using objects and data structures and validate them
+Mojolicious::Plugin::FormFields - Build and validate forms using objects or data structures
 
 =head1 SYNOPSIS
 
