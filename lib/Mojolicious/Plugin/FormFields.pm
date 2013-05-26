@@ -64,17 +64,6 @@ use overload
 
 my $SEPARATOR = '.';
 
-for my $m (qw(check filter)) {
-    no strict 'refs';
-
-    *$m = sub {
-	my ($self, $code) = @_;
-	Carp::croak 'code ref required' unless ref $code eq 'CODE';
-	push @{$self->{"${m}s"}}, $self->{name} => $code;
-	$self;
-    };
-}
-
 sub new
 {
     my $class = shift;
@@ -230,8 +219,23 @@ sub each
     return;
 }
 
+sub check
+{
+    my $self = shift;
+    push @{$self->{checks}}, $self->{name} => shift;
+    $self; 
+}
+
+sub filter
+{
+    my $self = shift;
+    my $data = ref $_[0] eq 'CODE' ? shift : Validate::Tiny::filter(@_);
+    push @{$self->{filters}}, $self->{name} => $data;
+    $self;
+}
+
 # Just a single value
-sub error 
+sub error
 {
     my $self = shift;
     $self->{result}->{error}->{$self->{name}};
@@ -244,17 +248,21 @@ sub valid
     my $self  = shift;
     return $self->{result}->{success} if defined $self->{result};
 
-    my $value = $self->{c}->param($self->{name});
-    my $field = { $self->{name} => $value };
+    my $result;
+    my $name  = $self->{name};
+    my $value = $self->{c}->param($name);
+    my $field = { $name => $value };
     my $rules = {
-	fields  => [ $self->{name} ],
+	fields  => [ $name ],
 	checks  => $self->{checks},
 	filters => $self->{filters}
     };
 
-    # TODO: If valid we need to set the filtered fields
-    $self->{result} = Validate::Tiny::validate($field, $rules);
-    $self->{result}->{success};
+    $result = Validate::Tiny::validate($field, $rules);
+    $self->{c}->param($name, $result->{data}->{$name}) if @{$self->{filters}};
+    $self->{result} = $result;
+
+    $result->{success};
 }
 
 # Avoid AUTOLOAD call
@@ -269,7 +277,7 @@ sub AUTOLOAD
     if($method =~ /^is_/) {
 	my $check = Validate::Tiny->can($method);
 	die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
-	
+
 	push @{$self->{checks}}, $self->{name} => $check->(@_);
     }
     else {
@@ -324,7 +332,7 @@ sub _lookup_value
     my $self = shift;
     return $self->{value} if defined $self->{value};
 
-    my $name = $self->{name};    
+    my $name = $self->{name};
     my $object = $self->{object};
     my @path = split /\Q$SEPARATOR/, $name;
 
@@ -358,7 +366,7 @@ sub _lookup_value
 	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
 	}
     }
-    
+
     $self->{value} = $object;
     $self->{value};
 }

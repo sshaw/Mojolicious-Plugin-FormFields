@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Mojolicious::Plugin::FormFields - Build forms using objects and data structures and validate them
+Mojolicious::Plugin::FormFields - Build and validate forms using objects or data structures
 
 =head1 SYNOPSIS
 
