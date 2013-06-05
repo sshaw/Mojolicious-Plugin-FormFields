@@ -31,10 +31,10 @@ post '/custom_filter' => sub {
 
 my $t = Test::Mojo->new;
 $t->post_ok('/single_filter',
-	    form => { 'name' => 'fofinha' })->status_is(200)->content_is('FOFINHA');
+            form => { 'name' => 'fofinha' })->status_is(200)->content_is('FOFINHA');
 
 $t->post_ok('/multiple_filters',
-	    form => { 'name' => ' a   b     c   ' })->status_is(200)->content_is('A B C');
+            form => { 'name' => ' a   b     c   ' })->status_is(200)->content_is('A B C');
 
 $t->post_ok('/custom_filter',
-	    form => { 'name' => 'foo!' })->status_is(200)->content_is('foo');
+            form => { 'name' => 'foo!' })->status_is(200)->content_is('foo');

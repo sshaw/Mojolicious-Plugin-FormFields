@@ -24,25 +24,25 @@ sub register
       Mojolicious::Plugin::FormFields::ScopedField->new(@_);
   });
 
-  my $functions = $config->{functions};
-  my $helper = $functions->{valid} // 'valid';
+  my $methods = $config->{methods};
+  my $helper = $methods->{valid} // 'valid';
   $app->helper($helper => sub {
       my $c = shift;
       my $valid = 1;
       my $errors = {};
 
       while(my ($name, $field) = each %{$c->stash->{$ns}}) {
-	  if(!$field->valid) {
-	      $valid = 0;
-	      $errors->{$name} = $field->error;
-	  }
+          if(!$field->valid) {
+              $valid = 0;
+              $errors->{$name} = $field->error;
+          }
       }
 
       $c->stash->{"$ns.errors"} = $errors;
       $valid;
   });
 
-  $helper = $functions->{error} // 'errors';
+  $helper = $methods->{errors} // 'errors';
   $app->helper($helper => sub {
       my ($c, $name) = @_;
       my $errors = $c->stash->{"$ns.errors"} // {};
@@ -71,11 +71,11 @@ sub new
     Carp::croak 'field name required' unless $name;
 
     my $self = bless {
-	c       => $c,
-	name    => $name,
-	object  => $object,
-	checks  => [],
-	filters => []
+        c       => $c,
+        name    => $name,
+        object  => $object,
+        checks  => [],
+        filters => []
     }, $class;
 
     Scalar::Util::weaken $self->{c};
@@ -114,8 +114,8 @@ sub input
     $options{type} = $type;
 
     if($type eq 'checkbox' || $type eq 'radio') {
-	$options{checked} = 'checked'
-	    if !exists $options{checked} && defined $value && $value eq $options{value};
+        $options{checked} = 'checked'
+            if !exists $options{checked} && defined $value && $value eq $options{value};
     }
 
     $self->{c}->input_tag($self->{name}, %options);
@@ -150,13 +150,13 @@ sub select
     my $field;
 
     if(defined $c->param($name)) {
-	$field = $c->select_field($name, $options, %attr);
+        $field = $c->select_field($name, $options, %attr);
     }
     else {
-	# Make select_field select the value
-	$c->param($name, $self->_lookup_value);
-	$field = $c->select_field($name, $options, %attr);
-	$c->param($name, undef);
+        # Make select_field select the value
+        $c->param($name, $self->_lookup_value);
+        $field = $c->select_field($name, $options, %attr);
+        $c->param($name, undef);
     }
 
     $field;
@@ -198,8 +198,8 @@ sub textarea
 
     my $size = delete $options{size};
     if($size && $size =~ /^(\d+)[xX](\d+)$/) {
-	$options{rows} = $1;
-	$options{cols} = $2;
+        $options{rows} = $1;
+        $options{cols} = $2;
     }
 
     $self->{c}->text_area($self->{name}, %options, sub { $self->_lookup_value || '' });
@@ -223,7 +223,7 @@ sub check
 {
     my $self = shift;
     push @{$self->{checks}}, $self->{name} => shift;
-    $self; 
+    $self;
 }
 
 sub filter
@@ -253,9 +253,9 @@ sub valid
     my $value = $self->{c}->param($name);
     my $field = { $name => $value };
     my $rules = {
-	fields  => [ $name ],
-	checks  => $self->{checks},
-	filters => $self->{filters}
+        fields  => [ $name ],
+        checks  => $self->{checks},
+        filters => $self->{filters}
     };
 
     $result = Validate::Tiny::validate($field, $rules);
@@ -275,13 +275,13 @@ sub AUTOLOAD
    (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
 
     if($method =~ /^is_/) {
-	my $check = Validate::Tiny->can($method);
-	die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
+        my $check = Validate::Tiny->can($method);
+        die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
 
-	push @{$self->{checks}}, $self->{name} => $check->(@_);
+        push @{$self->{checks}}, $self->{name} => $check->(@_);
     }
     else {
-	push @{$self->{filters}}, $self->{name} => Validate::Tiny::filter($method);
+        push @{$self->{filters}}, $self->{name} => Validate::Tiny::filter($method);
     }
 
     $self->{result} = undef;	# reset previous validation
@@ -300,8 +300,8 @@ sub _to_fields
 
     my $i = -1;
     while(++$i < @$value) {
-	my $path = "$self->{name}${SEPARATOR}$i";
-	push @$fields, $self->{c}->fields($path, $self->{object});
+        my $path = "$self->{name}${SEPARATOR}$i";
+        push @$fields, $self->{c}->fields($path, $self->{object});
     }
 
     $fields;
@@ -337,38 +337,37 @@ sub _lookup_value
     my @path = split /\Q$SEPARATOR/, $name;
 
     if(!$object) {
-	$object = $self->{c}->stash($path[0]);
-	_invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
+        $object = $self->{c}->stash($path[0]);
+        _invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
     }
 
     # Remove the stash key for $object
     shift @path;
 
     while(defined(my $accessor = shift @path)) {
-	my $isa = ref($object);
+        my $isa = ref($object);
 
-	# We don't handle the case where one of these return an array
-	if(Scalar::Util::blessed($object) && $object->can($accessor)) {
-	    $object = $object->$accessor;
-	}
-	elsif($isa eq 'HASH') {
-	    # If blessed and !can() do we _really_ want to look inside?
-	    $object = $object->{$accessor};
-	}
-	elsif($isa eq 'ARRAY') {
-	    _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
-		unless $accessor =~ /^\d+$/;
+        # We don't handle the case where one of these return an array
+        if(Scalar::Util::blessed($object) && $object->can($accessor)) {
+            $object = $object->$accessor;
+        }
+        elsif($isa eq 'HASH') {
+            # If blessed and !can() do we _really_ want to look inside?
+            $object = $object->{$accessor};
+        }
+        elsif($isa eq 'ARRAY') {
+            _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
+                unless $accessor =~ /^\d+$/;
 
-	    $object = $object->[$accessor];
-	}
-	else {
-	    my $type = $isa || 'type that is not a reference';
-	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
-	}
+            $object = $object->[$accessor];
+        }
+        else {
+            my $type = $isa || 'type that is not a reference';
+            _invalid_parameter($name, "cannot use '$accessor' on a $type");
+        }
     }
 
     $self->{value} = $object;
-    $self->{value};
 }
 
 package Mojolicious::Plugin::FormFields::ScopedField;
@@ -396,15 +395,15 @@ sub object { shift->_lookup_value }
 for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
     no strict 'refs';
     *$m = sub {
-	my $self = shift;
-	my $name = shift;
-	Carp::croak 'field name required' unless $name;
+        my $self = shift;
+        my $name = shift;
+        Carp::croak 'field name required' unless $name;
 
-	my $path = "$self->{name}${sep}$name";
-	my $field = $self->{c}->field($path, $self->{object}, $self->{c});
-	return $field if $m eq 'fields';
+        my $path = "$self->{name}${sep}$name";
+        my $field = $self->{c}->field($path, $self->{object}, $self->{c});
+        return $field if $m eq 'fields';
 
-	$field->$m(@_);
+        $field->$m(@_);
     };
 }
 
@@ -416,7 +415,7 @@ __END__
 
 =head1 NAME
 
-Mojolicious::Plugin::FormFields - Build and validate forms using objects or data structures
+Mojolicious::Plugin::FormFields - Lightweight form builder with validation and filtering
 
 =head1 SYNOPSIS
 
@@ -437,9 +436,9 @@ Mojolicious::Plugin::FormFields - Build and validate forms using objects or data
       $self->field('user.password')->is_required->is_equal('user.confirm_password');
 
       if($self->valid) {
-	  $self->users->update($self->param('user'));
-	  $self->redirect_to('/profile');
-	  return;
+          $self->users->update($self->param('user'));
+          $self->redirect_to('/profile');
+          return;
       }
   }
 
@@ -481,8 +480,7 @@ Mojolicious::Plugin::FormFields - Build and validate forms using objects or data
 
 =head1 DESCRIPTION
 
-L<Mojolicious::Plugin::FormFields> is a lightweight form builder that allows you to bind objects
-and data structures to form fields. It also performs validation.
+L<Mojolicious::Plugin::FormFields> allows you to bind objects and data structures to form fields. It also performs validation and filtering via L<Validate::Tiny>.
 
 =head1 CREATING FIELDS
 
@@ -603,6 +601,66 @@ via the C<object> and C<index> methods.
       ...
     </div>
   <% } %>
+
+=head1 VALIDATING & FILTERING
+
+Validation rules are created by calling validation and/or filter methods
+on the field to be validated
+
+  # In your controller
+  my $self = shift;
+  $self->field('user.name')->is_required;
+  $self->field('user.name')->filter('trim');
+
+These methods can be chained
+
+  $self->field('user.name')->is_required->filter('trim');
+
+To perform validation on a field call its C<valid> method
+
+  $field = $self->field('user.name');
+  $field->is_required;
+  $field->valid;
+  $field->error;
+
+This will only validate and return the error for the C<user.name> field. To validate all fields and retrieve all error messages call the controller's C<valid> and C<error> methods
+
+  $self->field('user.name')->is_required;
+  $self->field('user.age')->is_like(qr/^\d+$/);
+  $self->valid;
+
+  my $errors = $self->errors;
+  $errors->{'user.name'}
+  # ...
+
+Of course the C<error>/C<errors> and C<valid> methods can be used in your view too
+
+  <% unless(valid()) { %>
+    <p>Hey, fix the below errors</p>
+  <% } %>
+
+  <%= field('name')->text %>
+  <% unless(field('name')->valid) { %>
+    <span class="error"><%= field('name')->error %></span>
+  <% } %>
+
+=head2 AVAILABLE RULES & FILTERS
+
+C<Mojolicious::Plugin::FormFields> uses C<Validate::Tiny>, see L<its docs|Validate::Tiny/filter> for a list.
+
+=head2 RENAMING THE VALIDATION METHODS
+
+In the event that the C<valid> and/or C<errors> methods clash with exiting methods/helpers
+in your app you can rename them by specifying alternate names when loading the plugin
+
+  $self->plugin('FormFields', methods => { valid => 'form_valid', errors => 'form_errors' });
+  # ...
+
+  $self->field('user.name')->is_required;
+  $self->form_valid;
+  $self->form_errors;
+  
+Note that this I<only> changes the methods B<on the controller> and does not change the methods on the object returned by C<field>.
 
 =head1 METHODS
 
@@ -793,7 +851,7 @@ Skye Shaw (sshaw AT gmail.com)
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>, L<MojoX::Validator>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>
 
 =head1 COPYRIGHT
 

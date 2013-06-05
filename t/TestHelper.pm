@@ -1,6 +1,6 @@
 package User;
 
-use Mojo::Base '-base';
+use Mojo::Base -base;
 
 has 'age';
 has 'bio';
@@ -20,7 +20,7 @@ our @EXPORT = qw(render_input user dom is_field_count is_field_attrs);
 sub dom { shift->tx->res->dom }	# For Test::Mojo
 
 sub is_field_count
-{ 
+{
     my ($t, $field, $expect) = @_;
     # can't say ->input->size unless input() exists
     is(dom($t)->find($field)->size, $expect, "$field count");
@@ -34,17 +34,17 @@ sub is_field_attrs
     is_deeply($attrs, $expect, "$field attributes");
 }
 
-sub user 
-{ 
+sub user
+{
     my %attribs = @_;
-    my %defaults = (admin => 1, 
-		    age   => 101,		    
-		    bio   => 'Proprietary and confidential',
-		    name  => 'sshaw',
-		    orders => [ { id => 1 }, { id => 2 } ]);
+    my %defaults = (admin => 1,
+                    age   => 101,
+                    bio   => 'Proprietary and confidential',
+                    name  => 'sshaw',
+                    orders => [ { id => 1 }, { id => 2 } ]);
     %attribs = (%defaults, %attribs);
 
-    User->new(%attribs);	
+    User->new(%attribs);
 }
 
 sub render_input
@@ -61,6 +61,3 @@ sub render_input
 }
 
 1;
-
-
-

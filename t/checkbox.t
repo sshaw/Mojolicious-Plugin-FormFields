@@ -1,4 +1,4 @@
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Mojolicious::Lite;
 
 use Test::More tests => 10;
@@ -8,8 +8,8 @@ use TestHelper;
 
 plugin 'FormFields';
 
-get '/checkbox' => sub { render_input(shift, 'checkbox') }; 
-get '/checkbox_with_value' => sub { render_input(shift, 'checkbox', input => ['sshaw']) }; 
+get '/checkbox' => sub { render_input(shift, 'checkbox') };
+get '/checkbox_with_value' => sub { render_input(shift, 'checkbox', input => ['sshaw']) };
 
 my %base_attr = (type => 'checkbox', name  => 'user.name', id => 'user-name');
 my $t = Test::Mojo->new;

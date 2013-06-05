@@ -2,7 +2,7 @@
 
 =head1 NAME
 
-Mojolicious::Plugin::FormFields - Build and validate forms using objects or data structures
+Mojolicious::Plugin::FormFields - Lightweight form builder with validation and filtering
 
 =head1 SYNOPSIS
 
@@ -23,9 +23,9 @@ Mojolicious::Plugin::FormFields - Build and validate forms using objects or data
       $self->field('user.password')->is_required->is_equal('user.confirm_password');
 
       if($self->valid) {
-	  $self->users->update($self->param('user'));
-	  $self->redirect_to('/profile');
-	  return;
+          $self->users->update($self->param('user'));
+          $self->redirect_to('/profile');
+          return;
       }
   }
 
@@ -67,8 +67,7 @@ Mojolicious::Plugin::FormFields - Build and validate forms using objects or data
 
 =head1 DESCRIPTION
 
-L<Mojolicious::Plugin::FormFields> is a lightweight form builder that allows you to bind objects
-and data structures to form fields. It also performs validation.
+L<Mojolicious::Plugin::FormFields> allows you to bind objects and data structures to form fields. It also performs validation and filtering via L<Validate::Tiny>.
 
 =head1 CREATING FIELDS
 
@@ -189,6 +188,66 @@ via the C<object> and C<index> methods.
       ...
     </div>
   <% } %>
+
+=head1 VALIDATING & FILTERING
+
+Validation rules are created by calling validation and/or filter methods
+on the field to be validated
+
+  # In your controller
+  my $self = shift;
+  $self->field('user.name')->is_required;
+  $self->field('user.name')->filter('trim');
+
+These methods can be chained
+
+  $self->field('user.name')->is_required->filter('trim');
+
+To perform validation on a field call its C<valid> method
+
+  $field = $self->field('user.name');
+  $field->is_required;
+  $field->valid;
+  $field->error;
+
+This will only validate and return the error for the C<user.name> field. To validate all fields and retrieve all error messages call the controller's C<valid> and C<error> methods
+
+  $self->field('user.name')->is_required;
+  $self->field('user.age')->is_like(qr/^\d+$/);
+  $self->valid;
+
+  my $errors = $self->errors;
+  $errors->{'user.name'}
+  # ...
+
+Of course the C<error>/C<errors> and C<valid> methods can be used in your view too
+
+  <% unless(valid()) { %>
+    <p>Hey, fix the below errors</p>
+  <% } %>
+
+  <%= field('name')->text %>
+  <% unless(field('name')->valid) { %>
+    <span class="error"><%= field('name')->error %></span>
+  <% } %>
+
+=head2 AVAILABLE RULES & FILTERS
+
+C<Mojolicious::Plugin::FormFields> uses C<Validate::Tiny>, see L<its docs|Validate::Tiny/filter> for a list.
+
+=head2 RENAMING THE VALIDATION METHODS
+
+In the event that the C<valid> and/or C<errors> methods clash with exiting methods/helpers
+in your app you can rename them by specifying alternate names when loading the plugin
+
+  $self->plugin('FormFields', methods => { valid => 'form_valid', errors => 'form_errors' });
+  # ...
+
+  $self->field('user.name')->is_required;
+  $self->form_valid;
+  $self->form_errors;
+  
+Note that this I<only> changes the methods B<on the controller> and does not change the methods on the object returned by C<field>.
 
 =head1 METHODS
 
@@ -379,7 +438,7 @@ Skye Shaw (sshaw AT gmail.com)
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>, L<MojoX::Validator>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>
 
 =head1 COPYRIGHT
 

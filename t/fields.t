@@ -1,4 +1,4 @@
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Mojolicious::Lite;
 
 use Test::More tests => 43;
@@ -8,33 +8,33 @@ use TestHelper;
 
 plugin 'FormFields';
 
-get '/fields' => sub { 
+get '/fields' => sub {
     my $self = shift;
     $self->stash(user => user());
-    $self->render(f => $self->fields('user'));    
+    $self->render(f => $self->fields('user'));
 };
 
-get '/fields_with_target_object' => sub { 
+get '/fields_with_target_object' => sub {
     my $self = shift;
-    $self->render('fields', f => $self->fields('user', user()));    
+    $self->render('fields', f => $self->fields('user', user()));
 };
 
-get '/fields_object' => sub { 
+get '/fields_object' => sub {
     my $self = shift;
     my $fields = $self->fields('user', user());
     $self->render(text => $fields->object->name);
 };
 
-get '/collection_of_fields_object' => sub { 
+get '/collection_of_fields_object' => sub {
     my $self = shift;
     my $orders = orders($self);
     $self->render(text => join ',', map $_->object->{id}, @$orders);
 };
 
-get '/collection_of_fields_index' => sub { 
+get '/collection_of_fields_index' => sub {
     my $self = shift;
     my $orders = orders($self);
-    $self->render(text => join ',', map $_->index, @$orders);    
+    $self->render(text => join ',', map $_->index, @$orders);
 };
 
 sub orders
@@ -49,9 +49,9 @@ sub fields_exist
     $t->element_exists('input[type="checkbox"][name="user.admin"]');
     $t->element_exists('input[type="hidden"][name="user.admin"][value="1"]');
     $t->element_exists('label');
-    $t->text_is('label','Name'); 
-    $t->element_exists('input[type="password"][name="user.name"][size="10"]'); 
-    $t->element_exists('input[type="radio"][value="yungsta"]'); 
+    $t->text_is('label','Name');
+    $t->element_exists('input[type="password"][name="user.name"][size="10"]');
+    $t->element_exists('input[type="radio"][value="yungsta"]');
     $t->element_exists('select[name="user.age"]');
     $t->element_exists('option[value="10"]');
     $t->element_exists('option[value="20"]');
@@ -91,9 +91,7 @@ __DATA__
 %= $f->radio('age', 'yungsta')
 %= $f->select('age', [10,20,30])
 %= $f->text('name', size => 10)
-%= $f->textarea('bio', rows => '20')    
+%= $f->textarea('bio', rows => '20')
 % for(@{$f->fields('orders')}) {
     %= $_->hidden('id');
 % }
-
-

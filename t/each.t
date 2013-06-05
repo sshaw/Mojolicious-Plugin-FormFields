@@ -1,4 +1,4 @@
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Mojolicious::Lite;
 
 use Test::More tests => 13;
@@ -10,19 +10,19 @@ plugin 'FormFields';
 
 my $users = [ user(name => 'user_a'), user(name => 'user_b') ];
 
-get '/overload' => sub { 
+get '/overload' => sub {
     my $self = shift;
     my $text = join '', map $_->text('name'), @{$self->field('users', $users)};
     $self->render(text => $text);
 };
 
-get '/overload_without_arrayref' => sub { 
+get '/overload_without_arrayref' => sub {
     my $self = shift;
     my @name = @{$self->field('user.name', user())};
     $self->render(text => scalar @name)
 };
 
-get '/each' => sub { 
+get '/each' => sub {
     my $self = shift;
     my $text = '';
     $self->field('users', $users)->each(sub { $text .= $_->text('name') });

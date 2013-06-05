@@ -1,4 +1,4 @@
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Mojolicious::Lite;
 
 use Test::More tests => 28;
@@ -10,8 +10,8 @@ plugin 'FormFields';
 
 get '/select' => sub { render_input(shift, 'select', input => [ [qw|a b|] ]) };
 get '/select_with_options' => sub { render_input(shift, 'select', input => [ [qw|a b|], 'data-x' => 'x' ]) };
-get '/select_with_fields_value_selected' => sub { 
-    render_input(shift, 'select', input => [ [qw|a sshaw|] ]) 
+get '/select_with_fields_value_selected' => sub {
+    render_input(shift, 'select', input => [ [qw|a sshaw|] ])
 };
 
 my %base_attr = (id => 'user-name', name => 'user.name');

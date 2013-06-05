@@ -1,4 +1,4 @@
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Mojolicious::Lite;
 
 use Test::More tests => 14;
