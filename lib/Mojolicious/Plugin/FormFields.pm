@@ -3,7 +3,7 @@ package Mojolicious::Plugin::FormFields;
 # TODO: We're not much of a subclass now
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.03';
+our $VERSION = '0.90';
 
 sub register
 {
@@ -399,12 +399,43 @@ for my $m (qw(checkbox fields file hidden input label password radio select text
         my $name = shift;
         Carp::croak 'field name required' unless $name;
 
-        my $path = "$self->{name}${sep}$name";
-        my $field = $self->{c}->field($path, $self->{object}, $self->{c});
+        my $field = $self->_field($name);
         return $field if $m eq 'fields';
 
         $field->$m(@_);
     };
+}
+
+sub errors
+{
+    my ($self, $name) = @_;
+    return $self->_field($name)->error if $name;
+    # ...
+}
+
+sub valid
+{
+    my ($self, $name) = @_;    
+    return $self->_field($name)->valid if $name;
+    # ...
+}
+
+our $AUTOLOAD;
+sub AUTOLOAD
+{
+    my $self = shift;
+    my $name = shift;
+    Carp::croak 'field name required' unless $name;    
+ 
+   (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
+    $self->_field($name)->$method;
+}
+
+sub _field
+{
+    my ($self, $name) = @_;
+    my $path = "$self->{name}${sep}$name";
+    $self->{c}->field($path, $self->{object}, $self->{c});
 }
 
 1;
@@ -468,7 +499,7 @@ Mojolicious::Plugin::FormFields - Lightweight form builder with validation and f
   $user->label('admin')
   $user->checkbox('admin')
   $user->password('password')
-  $user->select('age', [ [ X => 10], [Dub => 20] ])
+  $user->select('age', [ [X => 10], [Dub => 20] ])
   $user->file('avatar')
   $user->textarea('bio', size => '10x50')
 
@@ -623,7 +654,7 @@ To perform validation on a field call its C<valid> method
   $field->valid;
   $field->error;
 
-This will only validate and return the error for the C<user.name> field. To validate all fields and retrieve all error messages call the controller's C<valid> and C<error> methods
+This will only validate and return the error for the C<user.name> field. To validate all fields and retrieve all error messages call the controller's C<valid> and C<errors> methods
 
   $self->field('user.name')->is_required;
   $self->field('user.age')->is_like(qr/^\d+$/);
@@ -659,7 +690,7 @@ in your app you can rename them by specifying alternate names when loading the p
   $self->field('user.name')->is_required;
   $self->form_valid;
   $self->form_errors;
-  
+
 Note that this I<only> changes the methods B<on the controller> and does not change the methods on the object returned by C<field>.
 
 =head1 METHODS
