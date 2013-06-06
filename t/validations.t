@@ -1,7 +1,7 @@
 use Mojo::Base -strict;
 use Mojolicious::Lite;
 
-use Test::More tests => 24;
+use Test::More tests => 27;
 use Test::Mojo;
 
 plugin 'FormFields';
@@ -61,9 +61,7 @@ $t->post_ok('/multiple_fields')->status_is(200)->json_is({valid => 0,
                                                                       'password' => 'Required' }});
 $t->post_ok('/multiple_fields', form => { name => 'sshaw', password => '@s5' })->status_is(200)->json_is({valid => 1, errors => {}});
 
-
-$t->post_ok('/scoped_field')->status_is(200)->json_is({valid => 0, errors => { 'user.name' => 'Invalid value' }});
-#$t->post_ok('/scoped_field', form => { 'user.name => 'sshaw', password => '@s5' })->status_is(200)->json_is({valid => 1, errors => {}});
+$t->post_ok('/scoped_field', form => { 'user.name' => 'sshaw' })->status_is(200)->json_is({valid => 1, errors => {}});
 
 $t->post_ok('/custom_validation_rule',
             form => { 'name' => 'fofinha' })->status_is(200)->json_is({valid => 0, errors => { 'name' => 'what what what' }});

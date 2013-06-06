@@ -21,7 +21,10 @@ sub register
   });
 
   $app->helper(fields => sub {
-      Mojolicious::Plugin::FormFields::ScopedField->new(@_);
+      my $c    = shift;
+      my $name = shift || '';
+      $c->stash->{$ns}->{$name} ||= Mojolicious::Plugin::FormFields::ScopedField->new($c, $name, @_);
+      $c->stash->{$ns}->{$name};
   });
 
   my $methods = $config->{methods};
@@ -31,6 +34,7 @@ sub register
       my $valid = 1;
       my $errors = {};
 
+      # TODO: skip keys used by fields()
       while(my ($name, $field) = each %{$c->stash->{$ns}}) {
           if(!$field->valid) {
               $valid = 0;
@@ -60,6 +64,7 @@ use Validate::Tiny;
 use overload
     '@{}' => '_to_fields',
     '""'  => '_to_string',
+    bool  => sub { 1 },
     fallback => 1;
 
 my $SEPARATOR = '.';
@@ -245,7 +250,7 @@ sub separator { $SEPARATOR; }
 
 sub valid
 {
-    my $self  = shift;
+    my $self = shift;
     return $self->{result}->{success} if defined $self->{result};
 
     my $result;
@@ -385,7 +390,10 @@ sub new
     Carp::croak 'object name required' unless $_[1];
 
     my $self = $class->SUPER::new(@_);
+    $self->{validations} = {};
+    $self->{errors} = {};
     $self->{index} = $1 if $self->{name} =~ /\Q$sep\E(\d+)$/;
+
     $self;
 }
 
@@ -409,15 +417,26 @@ for my $m (qw(checkbox fields file hidden input label password radio select text
 sub errors
 {
     my ($self, $name) = @_;
-    return $self->_field($name)->error if $name;
-    # ...
+    $name ? $self->_field($name)->error : $self->{errors};
 }
 
 sub valid
 {
-    my ($self, $name) = @_;    
+    my ($self, $name) = @_;
     return $self->_field($name)->valid if $name;
-    # ...
+
+    $self->{errors} = {};
+
+    my $valid = 1;
+    for my $name (keys %{$self->{validations}}) {
+        my $field = $self->_field($name);
+        unless($field->valid) {
+            $valid = 0;
+            $self->{errors}->{$name} = $field->error;
+        }
+    }
+
+    $valid;
 }
 
 our $AUTOLOAD;
@@ -425,17 +444,21 @@ sub AUTOLOAD
 {
     my $self = shift;
     my $name = shift;
-    Carp::croak 'field name required' unless $name;    
- 
+    Carp::croak 'field name required' unless $name;
+
    (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
-    $self->_field($name)->$method;
+    $self->_field($name)->$method(@_);
+    $self->{validations}->{$name} = 1;
+
+    $self;
 }
+
+sub _path { "$_[0]->{name}${sep}$_[1]" }
 
 sub _field
 {
     my ($self, $name) = @_;
-    my $path = "$self->{name}${sep}$name";
-    $self->{c}->field($path, $self->{object}, $self->{c});
+    $self->{c}->field($self->_path($name), $self->{object}, $self->{c});
 }
 
 1;
