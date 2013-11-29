@@ -8,7 +8,7 @@ WriteMakefile(
      VERSION_FROM => 'lib/Mojolicious/Plugin/FormFields.pm',
      ABSTRACT_FROM => 'lib/Mojolicious/Plugin/FormFields.pm',
      AUTHOR       => 'Skye Shaw <skye.shaw AT gmail.com>',	      
-     PREREQ_PM    => { 'Mojolicious' => '4.5',
+     PREREQ_PM    => { 'Mojolicious' => '4.50',
 		       'Mojolicious::Plugin::ParamExpand' => 0 },
      LICENSE      => 'perl',
      test         => {TESTS => 't/*.t'},
