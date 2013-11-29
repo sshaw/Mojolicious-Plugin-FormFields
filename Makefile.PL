@@ -15,6 +15,7 @@ WriteMakefile(
      test         => {TESTS => 't/*.t'},
      (eval { ExtUtils::MakeMaker->VERSION(6.46) } ?
       (META_MERGE  => { resources => { bugtracker => 'http://github.com/sshaw/Mojolicious-Plugin-FormFields/issues',
+                                       repository => 'http://github.com/sshaw/Mojolicious-Plugin-FormFields',
 				       homepage   => 'http://github.com/sshaw/Mojolicious-Plugin-FormFields'} }) : ())
 );
 
