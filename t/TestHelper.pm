@@ -30,7 +30,7 @@ sub is_field_attrs
 {
     my ($t, $field, $expect) = @_;
     my $e = dom($t)->at($field);
-    my $attrs = $e ? $e->attrs : {};
+    my $attrs = $e ? $e->attr : {};
     is_deeply($attrs, $expect, "$field attributes");
 }
 

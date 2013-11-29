@@ -363,12 +363,14 @@ Creates
 
 =head1 AUTHOR
 
-Skye Shaw (sshaw AT lucas.cis.temple.edu)
+Skye Shaw (sshaw AT lucas.cis.temple.edu) 
 
 =head1 SEE ALSO
 
 L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<MojoX::Validator>
 
-=head1 LICENSE
+=head1 COPYRIGHT
+
+Copyright (c) 2012 Skye Shaw.
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.

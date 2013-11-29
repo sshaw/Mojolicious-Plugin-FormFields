@@ -2,7 +2,7 @@ package Mojolicious::Plugin::FormFields;
 
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 
 sub register
 {
