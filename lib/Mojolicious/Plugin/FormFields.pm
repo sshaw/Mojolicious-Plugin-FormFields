@@ -36,10 +36,10 @@ sub register
 
       # TODO: skip keys used by fields()
       while(my ($name, $field) = each %{$c->stash->{$ns}}) {
-          if(!$field->valid) {
-              $valid = 0;
-              $errors->{$name} = $field->error;
-          }
+	  if(!$field->valid) {
+	      $valid = 0;
+	      $errors->{$name} = $field->error;
+	  }
       }
 
       $c->stash->{"$ns.errors"} = $errors;
@@ -76,11 +76,11 @@ sub new
     Carp::croak 'field name required' unless $name;
 
     my $self = bless {
-        c       => $c,
-        name    => $name,
-        object  => $object,
-        checks  => [],
-        filters => []
+	c       => $c,
+	name    => $name,
+	object  => $object,
+	checks  => [],
+	filters => []
     }, $class;
 
     Scalar::Util::weaken $self->{c};
@@ -119,8 +119,8 @@ sub input
     $options{type} = $type;
 
     if($type eq 'checkbox' || $type eq 'radio') {
-        $options{checked} = 'checked'
-            if !exists $options{checked} && defined $value && $value eq $options{value};
+	$options{checked} = 'checked'
+	    if !exists $options{checked} && defined $value && $value eq $options{value};
     }
 
     $self->{c}->input_tag($self->{name}, %options);
@@ -155,13 +155,13 @@ sub select
     my $field;
 
     if(defined $c->param($name)) {
-        $field = $c->select_field($name, $options, %attr);
+	$field = $c->select_field($name, $options, %attr);
     }
     else {
-        # Make select_field select the value
-        $c->param($name, $self->_lookup_value);
-        $field = $c->select_field($name, $options, %attr);
-        $c->param($name, undef);
+	# Make select_field select the value
+	$c->param($name, $self->_lookup_value);
+	$field = $c->select_field($name, $options, %attr);
+	$c->param($name, undef);
     }
 
     $field;
@@ -203,8 +203,8 @@ sub textarea
 
     my $size = delete $options{size};
     if($size && $size =~ /^(\d+)[xX](\d+)$/) {
-        $options{rows} = $1;
-        $options{cols} = $2;
+	$options{rows} = $1;
+	$options{cols} = $2;
     }
 
     $self->{c}->text_area($self->{name}, %options, sub { $self->_lookup_value || '' });
@@ -258,9 +258,9 @@ sub valid
     my $value = $self->{c}->param($name);
     my $field = { $name => $value };
     my $rules = {
-        fields  => [ $name ],
-        checks  => $self->{checks},
-        filters => $self->{filters}
+	fields  => [ $name ],
+	checks  => $self->{checks},
+	filters => $self->{filters}
     };
 
     $result = Validate::Tiny::validate($field, $rules);
@@ -280,13 +280,15 @@ sub AUTOLOAD
    (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
 
     if($method =~ /^is_/) {
-        my $check = Validate::Tiny->can($method);
-        die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
+	my $check = Validate::Tiny->can($method);
+	die qq|Can't locate object method "$method" via package "${ \__PACKAGE__ }"| unless $check;
 
-        push @{$self->{checks}}, $self->{name} => $check->(@_);
+	push @{$self->{checks}}, $self->{name} => $check->(@_);
     }
     else {
-        push @{$self->{filters}}, $self->{name} => Validate::Tiny::filter($method);
+	# TODO: What's the use case for this?
+	# field('name')->trim instead of field('name')->filter('trim')?
+	push @{$self->{filters}}, $self->{name} => Validate::Tiny::filter($method);
     }
 
     $self->{result} = undef;	# reset previous validation
@@ -305,8 +307,8 @@ sub _to_fields
 
     my $i = -1;
     while(++$i < @$value) {
-        my $path = "$self->{name}${SEPARATOR}$i";
-        push @$fields, $self->{c}->fields($path, $self->{object});
+	my $path = "$self->{name}${SEPARATOR}$i";
+	push @$fields, $self->{c}->fields($path, $self->{object});
     }
 
     $fields;
@@ -342,34 +344,34 @@ sub _lookup_value
     my @path = split /\Q$SEPARATOR/, $name;
 
     if(!$object) {
-        $object = $self->{c}->stash($path[0]);
-        _invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
+	$object = $self->{c}->stash($path[0]);
+	_invalid_parameter($name, "nothing in the stash for '$path[0]'") unless $object;
     }
 
     # Remove the stash key for $object
     shift @path;
 
     while(defined(my $accessor = shift @path)) {
-        my $isa = ref($object);
+	my $isa = ref($object);
 
-        # We don't handle the case where one of these return an array
-        if(Scalar::Util::blessed($object) && $object->can($accessor)) {
-            $object = $object->$accessor;
-        }
-        elsif($isa eq 'HASH') {
-            # If blessed and !can() do we _really_ want to look inside?
-            $object = $object->{$accessor};
-        }
-        elsif($isa eq 'ARRAY') {
-            _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
-                unless $accessor =~ /^\d+$/;
+	# We don't handle the case where one of these return an array
+	if(Scalar::Util::blessed($object) && $object->can($accessor)) {
+	    $object = $object->$accessor;
+	}
+	elsif($isa eq 'HASH') {
+	    # If blessed and !can() do we _really_ want to look inside?
+	    $object = $object->{$accessor};
+	}
+	elsif($isa eq 'ARRAY') {
+	    _invalid_parameter($name, "non-numeric index '$accessor' used to access an ARRAY")
+		unless $accessor =~ /^\d+$/;
 
-            $object = $object->[$accessor];
-        }
-        else {
-            my $type = $isa || 'type that is not a reference';
-            _invalid_parameter($name, "cannot use '$accessor' on a $type");
-        }
+	    $object = $object->[$accessor];
+	}
+	else {
+	    my $type = $isa || 'type that is not a reference';
+	    _invalid_parameter($name, "cannot use '$accessor' on a $type");
+	}
     }
 
     $self->{value} = $object;
@@ -387,10 +389,10 @@ my $sep = __PACKAGE__->separator;
 sub new
 {
     my $class = shift;
-    Carp::croak 'object name required' unless $_[1];
+    Carp::croak 'object name required' unless $_[1];  # 0 arg is controller instance
 
     my $self = $class->SUPER::new(@_);
-    $self->{validations} = {};
+    $self->{fields} = {};
     $self->{errors} = {};
     $self->{index} = $1 if $self->{name} =~ /\Q$sep\E(\d+)$/;
 
@@ -400,22 +402,24 @@ sub new
 sub index  { shift->{index} }
 sub object { shift->_lookup_value }
 
-for my $m (qw(checkbox fields file hidden input label password radio select text textarea)) {
+for my $m (qw(checkbox fields file hidden input label password radio select text textarea check filter)) {
     no strict 'refs';
     *$m = sub {
-        my $self = shift;
-        my $name = shift;
-        Carp::croak 'field name required' unless $name;
+	my $self = shift;
+	my $name = shift;
+	Carp::croak 'field name required' unless $name;
 
-        my $field = $self->_field($name);
-        return $field if $m eq 'fields';
+	my $field = $self->_field($name);
+	return $field if $m eq 'fields';
 
-        $field->$m(@_);
+	$self->{fields}->{$name} = 1;
+	$field->$m(@_);
     };
 }
 
 sub errors
 {
+    # TODO: $name is not a valid field
     my ($self, $name) = @_;
     $name ? $self->_field($name)->error : $self->{errors};
 }
@@ -423,17 +427,18 @@ sub errors
 sub valid
 {
     my ($self, $name) = @_;
+    # TODO: $name is not a valid field
     return $self->_field($name)->valid if $name;
 
     $self->{errors} = {};
 
     my $valid = 1;
-    for my $name (keys %{$self->{validations}}) {
-        my $field = $self->_field($name);
-        unless($field->valid) {
-            $valid = 0;
-            $self->{errors}->{$name} = $field->error;
-        }
+    for my $name (keys %{$self->{fields}}) {
+	my $field = $self->_field($name);
+	unless($field->valid) {
+	    $valid = 0;
+	    $self->{errors}->{$name} = $field->error;
+	}
     }
 
     $valid;
@@ -448,7 +453,8 @@ sub AUTOLOAD
 
    (my $method = $AUTOLOAD) =~ s/[^':]+:://g;
     $self->_field($name)->$method(@_);
-    $self->{validations}->{$name} = 1;
+    # Some hacky shit going on here...
+    $self->{fields}->{$name} = 1;
 
     $self;
 }
@@ -490,9 +496,9 @@ Mojolicious::Plugin::FormFields - Lightweight form builder with validation and f
       $self->field('user.password')->is_required->is_equal('user.confirm_password');
 
       if($self->valid) {
-          $self->users->update($self->param('user'));
-          $self->redirect_to('/profile');
-          return;
+	  $self->users->update($self->param('user'));
+	  $self->redirect_to('/profile');
+	  return;
       }
   }
 
@@ -901,14 +907,14 @@ Creates
 
 =head1 AUTHOR
 
-Skye Shaw (sshaw AT gmail.com)
+Skye Shaw (sshaw [AT] gmail.com)
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>, L<Mojolicious::Plugin::DomIdHelper>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2012 Skye Shaw.
+Copyright (c) 2012-2014 Skye Shaw.
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
