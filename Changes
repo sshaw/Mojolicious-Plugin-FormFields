@@ -1,0 +1,3 @@
+2013-11-28 v0.03
+* Require Mojolicious >= 4.5
+* Removed deprecated attrs calls to Mojo::DOM (thanks Leon Kyneur)
