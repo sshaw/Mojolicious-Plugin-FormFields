@@ -564,7 +564,7 @@ Mojolicious::Plugin::FormFields - Lightweight form builder with validation and f
 
 =head1 DESCRIPTION
 
-L<Mojolicious::Plugin::FormFields> allows you to bind objects and data structures to form fields. It also performs validation and filtering via L<Validate::Tiny>.
+C<Mojolicious::Plugin::FormFields> allows you to bind objects and data structures to form fields. It also performs validation and filtering via L<Validate::Tiny>.
 
 =head1 CREATING FIELDS
 
@@ -611,7 +611,7 @@ the value pointed at by the field name (desired behavior?). This is the same as 
 
 Options can also be provided
 
-  field('user.name')->text(class => 'input-text', 'data-name' => 'xxx')
+  field('user.name')->text(class => 'input-text', data => { name => 'xxx' })
 
 See L</SUPPORTED FIELDS> for the list of HTML input creation methods.
 
@@ -645,7 +645,7 @@ Fields can be scoped to a particular object/data structure via the C<< L</fields
   $user->text('name');
   $user->hidden('id');
 
-When using C<fields> you must supply the field's name to the HTML input method, otherwise
+When using C<fields> you must supply the field's name to the HTML input and validation methods, otherwise
 the calls are the same as they are with C<field>.
 
 =head2 COLLECTIONS
@@ -727,6 +727,13 @@ Of course the C<error>/C<errors> and C<valid> methods can be used in your view t
   <% unless(field('name')->valid) { %>
     <span class="error"><%= field('name')->error %></span>
   <% } %>
+
+When creating validation rules for L</fields> you must pass the field name as the first argument
+
+  my $user = fields('user');
+  $user->is_required('password');
+  $user->is_equal(password => 'confirm_password');
+  $user->is_long_at_least(password => 8, 'Mais longo caipira');
 
 =head2 AVAILABLE RULES & FILTERS
 
