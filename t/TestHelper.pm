@@ -10,7 +10,7 @@ has 'orders';
 
 package TestHelper;
 
-use Mojo::Base '-strict';
+use Mojo::Base -strict;
 use Test::More;
 
 require Exporter;
@@ -30,7 +30,15 @@ sub is_field_attrs
 {
     my ($t, $field, $expect) = @_;
     my $e = dom($t)->at($field);
-    my $attrs = $e ? $e->attr : {};
+
+    my $attrs;
+    if($e) {
+	# attrs removed after 4.50
+	$attrs = $e->can('attrs') ? $e->attrs : $e->attr;
+    }
+
+    $attrs //= {};
+
     is_deeply($attrs, $expect, "$field attributes");
 }
 
@@ -38,10 +46,10 @@ sub user
 {
     my %attribs = @_;
     my %defaults = (admin => 1,
-                    age   => 101,
-                    bio   => 'Proprietary and confidential',
-                    name  => 'sshaw',
-                    orders => [ { id => 1 }, { id => 2 } ]);
+		    age   => 101,
+		    bio   => 'Proprietary and confidential',
+		    name  => 'sshaw',
+		    orders => [ { id => 1 }, { id => 2 } ]);
     %attribs = (%defaults, %attribs);
 
     User->new(%attribs);
