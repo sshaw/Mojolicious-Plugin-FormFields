@@ -80,6 +80,23 @@ post '/scoped_validation_rules_can_be_chained' => sub {
     $c->render(json => $json);
 };
 
+post '/is_equal' => sub {
+    my $c = shift;
+    $c->field('password')->is_required->is_equal('confirm_password');
+
+    my $json = { valid => $c->valid, errors => $c->errors };
+    $c->render(json => $json);
+};
+
+post '/scoped_field_is_equal' => sub {
+    my $c = shift;
+    my $user = $c->fields('user');
+    $user->is_required('password')->is_equal(password => 'confirm_password');
+
+    my $json = { valid => $user->valid, errors => $user->errors };
+    $c->render(json => $json);
+};
+
 my $t = Test::Mojo->new;
 $t->post_ok('/single_field')->status_is(200)->json_is({valid => 0, error => 'Required'});
 $t->post_ok('/single_field',
@@ -114,6 +131,16 @@ $t->post_ok('/validation_rules_can_be_chained',
 												    'password' => 'Invalid value' }});
 $t->post_ok('/scoped_validation_rules_can_be_chained',
 	    form => { 'user.name' => 'ABC', 'user.password' => 'XYZ' })->status_is(200)->json_is({valid => 0,
-												  errors => { 'name' => 'Invalid value',
-													      'password' => 'Invalid value' }});
+												  errors => { name => 'Invalid value',
+													      password => 'Invalid value' }});
+$t->post_ok('/is_equal',
+	    form => { password => 'a', confirm_password => 'b' })->status_is(200)->json_is({valid => 0, errors => { password => 'Invalid value' }});
+$t->post_ok('/is_equal',
+	    form => { password => 'a', confirm_password => 'a' })->status_is(200)->json_is({valid => 1, errors => {}});
+
+$t->post_ok('/scoped_field_is_equal',
+	    form => { 'user.password' => 'a', 'user.confirm_password' => 'b' })->status_is(200)->json_is({valid => 0, errors => { password => 'Invalid value' }});
+$t->post_ok('/scoped_field_is_equal',
+	    form => { 'user.password' => 'a', 'user.confirm_password' => 'a' })->status_is(200)->json_is({valid => 1, errors => {}});
+
 done_testing();

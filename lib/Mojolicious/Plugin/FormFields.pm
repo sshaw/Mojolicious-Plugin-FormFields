@@ -263,11 +263,25 @@ sub valid
 	filters => $self->{filters}
     };
 
+    # A bit of massaging For the is_equal() validation
+    my $eq = $self->{eq_to_field};
+    if($eq) {
+	$field->{$eq} = $self->{c}->param($eq);
+	push @{$rules->{fields}}, $eq;
+    }
+
     $result = Validate::Tiny::validate($field, $rules);
     $self->{c}->param($name, $result->{data}->{$name}) if @{$self->{filters}};
     $self->{result} = $result;
 
     $result->{success};
+}
+
+sub is_equal
+{
+    my $self = shift;
+    $self->{eq_to_field} = $_[0];
+    push @{$self->{checks}}, $self->{name} => Validate::Tiny::is_equal(@_);
 }
 
 # Avoid AUTOLOAD call
@@ -307,8 +321,7 @@ sub _to_fields
 
     my $i = -1;
     while(++$i < @$value) {
-	my $path = "$self->{name}${SEPARATOR}$i";
-	push @$fields, $self->{c}->fields($path, $self->{object});
+	push @$fields, $self->{c}->fields($self->_path($i), $self->{object});
     }
 
     $fields;
@@ -333,6 +346,8 @@ sub _invalid_parameter
     my ($field, $message) = @_;
     Carp::croak "Invalid parameter '$field': $message";
 }
+
+sub _path { "$_[0]->{name}${SEPARATOR}$_[1]" }
 
 sub _lookup_value
 {
@@ -400,26 +415,32 @@ sub new
 }
 
 sub index  { shift->{index} }
+
+# This is the caller's view of the object, which can differ from $self->{object}.
+# For example, given 'user.orders.0.id' {object} will be user and object() will be user.orders.0
 sub object { shift->_lookup_value }
 
-for my $m (qw(checkbox fields file hidden input label password radio select text textarea check filter)) {
+for my $m (qw(checkbox fields file hidden input label password radio select text textarea check filter is_equal)) {
     no strict 'refs';
     *$m = sub {
 	my $self = shift;
 	my $name = shift;
 	Carp::croak 'field name required' unless $name;
 
-	my $field = $self->_field($name);
-	return $field if $m eq 'fields';
+	return $self->_fields($name) if $m eq 'fields';
 
+	my $field = $self->_field($name);
 	$self->{fields}->{$name} = 1;
+
+	# TODO: compare things in different scopes, e.g., user.password => account.password
+	return $field->$m($self->_path(shift), @_) if $m eq 'is_equal';
+
 	$field->$m(@_);
     };
 }
 
 sub errors
 {
-    # TODO: $name is not a valid field
     my ($self, $name) = @_;
     $name ? $self->_field($name)->error : $self->{errors};
 }
@@ -427,7 +448,6 @@ sub errors
 sub valid
 {
     my ($self, $name) = @_;
-    # TODO: $name is not a valid field
     return $self->_field($name)->valid if $name;
 
     $self->{errors} = {};
@@ -459,12 +479,16 @@ sub AUTOLOAD
     $self;
 }
 
-sub _path { "$_[0]->{name}${sep}$_[1]" }
-
 sub _field
 {
     my ($self, $name) = @_;
-    $self->{c}->field($self->_path($name), $self->{object}, $self->{c});
+    $self->{c}->field($self->_path($name), $self->{object});
+}
+
+sub _fields
+{
+    my ($self, $name) = @_;
+    $self->{c}->fields($self->_path($name), $self->{object});
 }
 
 1;

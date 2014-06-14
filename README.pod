@@ -23,9 +23,9 @@ Mojolicious::Plugin::FormFields - Lightweight form builder with validation and f
       $self->field('user.password')->is_required->is_equal('user.confirm_password');
 
       if($self->valid) {
-          $self->users->update($self->param('user'));
-          $self->redirect_to('/profile');
-          return;
+	  $self->users->update($self->param('user'));
+	  $self->redirect_to('/profile');
+	  return;
       }
   }
 
@@ -434,14 +434,14 @@ Creates
 
 =head1 AUTHOR
 
-Skye Shaw (sshaw AT gmail.com)
+Skye Shaw (sshaw [AT] gmail.com)
 
 =head1 SEE ALSO
 
-L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>
+L<Mojolicious::Plugin::TagHelpers>, L<Mojolicious::Plugin::ParamExpand>, L<Validate::Tiny>, L<Mojolicious::Plugin::DomIdHelper>
 
 =head1 COPYRIGHT
 
-Copyright (c) 2012 Skye Shaw.
+Copyright (c) 2012-2014 Skye Shaw.
 
 This library is free software; you can redistribute it and/or modify it under the same terms as Perl itself.
