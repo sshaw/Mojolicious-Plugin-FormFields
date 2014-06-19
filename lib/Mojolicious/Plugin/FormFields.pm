@@ -432,6 +432,8 @@ for my $m (qw(checkbox fields file hidden input label password radio select text
 	my $field = $self->_field($name);
 	$self->{fields}->{$name} = 1;
 
+	return $field->error if $m eq 'error';
+
 	# TODO: compare things in different scopes, e.g., user.password => account.password
 	return $field->$m($self->_path(shift), @_) if $m eq 'is_equal';
 
