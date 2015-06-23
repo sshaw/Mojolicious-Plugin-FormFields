@@ -3,7 +3,7 @@ package Mojolicious::Plugin::FormFields;
 # TODO: We're not much of a subclass now
 use Mojo::Base 'Mojolicious::Plugin::ParamExpand';
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 sub register
 {
@@ -518,14 +518,18 @@ Mojolicious::Plugin::FormFields - Lightweight form builder with validation and f
   sub update
   {
       my $self = shift;
+      my $user = $self->params('user');
+
       $self->field('user.name')->is_required;
       $self->field('user.password')->is_required->is_equal('user.confirm_password');
 
       if($self->valid) {
-	  $self->users->update($self->param('user'));
+	  $self->users->save($user);
 	  $self->redirect_to('/profile');
 	  return;
       }
+
+      $self->stash(user => $user);
   }
 
   # In your view

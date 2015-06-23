@@ -34,7 +34,12 @@ sub is_field_attrs
     my $attrs;
     if($e) {
 	# attrs removed after 4.50
-	$attrs = $e->can('attrs') ? $e->attrs : $e->attr;
+        $attrs = $e->can('attrs') ? $e->attrs : $e->attr;
+	# Mojolicious >= 5.73 generates HTML5, which will cause is_deeply to fail for
+	# atributes without a value, like 'checked' or 'selected'
+	for(keys %$attrs) {
+	  $attrs->{$_} = $_ if exists $attrs->{$_} and !defined $attrs->{$_};
+	}
     }
 
     $attrs //= {};
