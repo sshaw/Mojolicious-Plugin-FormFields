@@ -42,6 +42,10 @@ sub register
 	  }
       }
 
+      my $hash = Mojolicious::Plugin::ParamExpand::expander
+        ->expand_hash($c->req->params->to_hash);
+      $c->param($_ => $hash->{$_}) for keys %$hash;
+
       $c->stash->{"$ns.errors"} = $errors;
       $valid;
   });
@@ -271,7 +275,8 @@ sub valid
     }
 
     $result = Validate::Tiny::validate($field, $rules);
-    $self->{c}->param($name, $result->{data}->{$name}) if @{$self->{filters}};
+    $self->{c}->req->params->param($name, $result->{data}->{$name})
+        if @{$self->{filters}};
     $self->{result} = $result;
 
     $result->{success};
