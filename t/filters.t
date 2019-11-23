@@ -38,6 +38,24 @@ post '/scoped_multiple_filters' => sub {
     $c->render(text => $c->param('user.name'));
 };
 
+post '/structured_request_parameters_with_scoped_single_filter' => sub {
+    my $c = shift;
+    my $user = $c->fields('user');
+    $user->filter(name => 'uc');
+    $c->valid;
+    my $params = $c->param('user');
+    $c->render(text => $params->{'name'});
+};
+
+post '/structured_request_parameters_with_scoped_multiple_filters' => sub {
+    my $c = shift;
+    my $user = $c->fields('user');
+    $user->filter('name', 'uc', 'strip')->filter('trim');
+    $c->valid;
+    my $params = $c->param('user');
+    $c->render(text => $params->{'name'});
+};
+
 post '/custom_filter' => sub {
     my $c = shift;
     $c->field('name')->filter(sub { chop $_[0]; $_[0] });
@@ -64,6 +82,12 @@ $t->post_ok('/multiple_filters',
             form => { 'name' => ' a   b     c   ' })->status_is(200)->content_is('A B C');
 
 $t->post_ok('/scoped_multiple_filters',
+            form => { 'user.name' => ' a   b     c   ' })->status_is(200)->content_is('A B C');
+
+$t->post_ok('/structured_request_parameters_with_scoped_single_filter',
+            form => { 'user.name' => 'fofinha' })->status_is(200)->content_is('FOFINHA');
+
+$t->post_ok('/structured_request_parameters_with_scoped_multiple_filters',
             form => { 'user.name' => ' a   b     c   ' })->status_is(200)->content_is('A B C');
 
 $t->post_ok('/custom_filter',
